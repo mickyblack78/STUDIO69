@@ -356,7 +356,8 @@
                         window.clipboard = mctx.getImageData(window.dx, window.dy, w, h); 
                         if (app.activeTool === 'CUT') { mctx.clearRect(window.dx, window.dy, w, h); pushUndo('cut'); } 
                         alert("Copied!");
-                    }
+                    }app.activeTool = null;
+                        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
                 } 
                 else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo('stroke'); }
             }
@@ -492,8 +493,7 @@
                 else alert("GEMINI:\n\n" + data.candidates[0].content.parts[0].text);
             } catch (e) { alert("Network Error."); }
             $('dock-tools').innerText = 'TOOLS';
-        }
-
+        } 
         init();
     </script>
 </body>
