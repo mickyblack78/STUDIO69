@@ -280,7 +280,7 @@
                         isDraw = false; 
                     } 
                     else if (app.activeTool === 'FILL') {
-                        tctx.fillStyle = app.penColor; tctx.fillRect(0, 0, temp.width, temp.height); pushUndo('fill'); isDraw = false;
+                        floodFill(c.x, c.y, app.penColor); pushUndo('fill'); isDraw = false;
                     }
                     else if (app.activeTool === 'TEXT') {
                         const txt = prompt("Enter text:");
