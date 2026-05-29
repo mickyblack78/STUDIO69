@@ -322,7 +322,6 @@
                     tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale;
                     tctx.strokeRect(window.dx, window.dy, c.x - window.dx, c.y - window.dy); tctx.setLineDash([]);
                 }
-               } 
                 else if (app.activeTool === 'PASTE' && window.clipboard) {
                     tctx.clearRect(0, 0, temp.width, temp.height);
                     if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1].d; tctx.drawImage(p, 0, 0); }
