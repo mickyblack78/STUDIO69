@@ -3,320 +3,389 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>STUDIO69</title>
-     <!-- Sets the color of the Android status bar when your PWA opens standalone -->
-    <meta name="theme-color" content="#121212">
-    <link rel="icon" type="image/png" sizes="192x192" href="SMARTART.png">
-    <link rel="apple-touch-icon" href="SMARTART.png">
-    <link rel="manifest" href="./manifest.json">
-    <link rel="manifest" href="manifest.json">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>STUDIO</title>
     <style>
-        :root { --nc: #00ffff; --eb: #2e5bff; --bg: #000; --panel: rgba(10, 10, 10, 0.98); }
+        :root {
+            --bg: #050505;
+            --panel: rgba(15, 15, 15, 0.95);
+            --border: #333;
+            --neon: #00ffff; 
+            --active-bg: rgba(0, 255, 255, 0.1);
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; font-family: monospace; }
-        body { background: var(--bg); height: 100dvh; width: 100vw; overflow: hidden; }
+        
+        body { background: var(--bg); height: 100vh; width: 100vw; overflow: hidden; color: #666; }
+
+        /* CANVASES */
         #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
         canvas { position: absolute; top: 0; left: 0; display: block; }
         #temp-canvas { z-index: 20; }
-        .dock { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; gap: 15px; padding: 15px 25px; background: var(--panel); border: 1px solid #333; border-radius: 60px; box-shadow: 0 0 20px rgba(0,0,0,0.8); }
-        .btn { width: 65px; height: 50px; border-radius: 25px; border: 1px solid #333; background: #222; display: flex; align-items: center; justify-content: center; color: #666; font-size: 11px; font-weight: 900; transition: 0.2s; cursor: pointer; }
-        .btn.active { border-color: var(--nc); color: var(--nc); box-shadow: 0 0 35px rgba(0, 255, 255, 0.4); }
-        .btn.qsave-active { border-color: var(--eb)!important; color: var(--eb)!important; box-shadow: 0 0 35px var(--eb)!important; }
-        .overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 2000; display: none; flex-direction: column; align-items: center; justify-content: center; }
-        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; width: 90%; max-width: 400px; }
-        .g-btn { aspect-ratio: 1; background: #111; border: 1px solid #333; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; cursor: pointer; text-align: center; }
-        .g-btn:active { background: var(--nc); color: #000; }
-        .m-list { width: 80%; max-width: 300px; display: flex; flex-direction: column; gap: 10px; }
-        .m-row { display: flex; gap: 10px; width: 100%; }
-        .m-item { flex: 1; padding: 20px; background: #111; border: 1px solid #444; color: #fff; text-align: center; font-size: 12px; cursor: pointer; }
-        .r-colors { display: flex; gap: 5px; margin-top: 20px; width: 90%; max-width: 400px; overflow-x: auto; padding: 10px 0; border-top: 1px solid #333; }
-        .swatch { width: 30px; height: 30px; border-radius: 5px; border: 1px solid #fff; flex-shrink: 0; cursor: pointer; }
-        .v-wrap { display: flex; flex-direction: column; gap: 20px; width: 100%; max-height: 90vh; overflow-y: auto; align-items: center; padding-bottom: 20px; }
-        .v-box { width: 90%; max-width: 300px; border: 1px solid #333; background: #050505; position: relative; }
-        .v-img { width: 100%; height: 25vh; object-fit: contain; border-bottom: 1px solid #333; background: #000; }
-        .v-bar { display: flex; height: 40px; }
-        .v-bar div { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 10px; color: #fff; border-right: 1px solid #333; cursor: pointer; }
-        .v-bar div:active { background: var(--nc); color: #000; }
-        .panel { background: var(--panel); border: 1px solid #333; padding: 20px; border-radius: 20px; width: 90%; max-width: 400px; display: flex; flex-direction: column; align-items: center; gap: 15px; color: #888; font-size: 10px; }
-        input[type="range"] { width: 100%; }
+
+        /* THE BOTTOM DOCK */
+        .dock {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 96%; max-width: 500px;
+            display: flex; justify-content: space-between; background: var(--panel); padding: 10px;
+            border-radius: 40px; border: 1px solid var(--border); z-index: 9999;
+        }
+
+        .dock-btn {
+            flex: 1; height: 50px; margin: 0 4px; border-radius: 25px; border: 1px solid var(--border);
+            background: #111; display: flex; align-items: center; justify-content: center;
+            color: #888; font-size: 11px; font-weight: 900; transition: 0.2s; cursor: pointer;
+        }
+
+        .active-btn { border-color: var(--neon) !important; color: var(--neon) !important; background: var(--active-bg); box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+
+        /* DROP-UP LADDERS */
+        .ladder {
+            position: fixed; right: 15px; bottom: 100px; display: none; flex-direction: column; gap: 8px;
+            z-index: 9998; width: 90px; max-height: 70vh; overflow-y: auto; padding-right: 5px;
+        }
+        .ladder::-webkit-scrollbar { display: none; }
+
+        .ladder-btn {
+            width: 100%; min-height: 50px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            color: #aaa; font-size: 10px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+
+        /* COLOR MENU SPECIFICS */
+        #ladder-color { width: 150px; background: var(--panel); padding: 15px; border-radius: 20px; border: 1px solid var(--border); }
+        .slider-label { font-size: 10px; color: #888; margin-top: 10px; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; margin-bottom: 10px; }
+        input[type="color"] { width: 100%; height: 40px; border: none; background: none; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div id="viewport">
-    <canvas id="main-canvas"></canvas>
-    <canvas id="temp-canvas"></canvas>
-</div>
-
-<div class="dock">
-    <div class="btn" id="btn-menu" onclick="handleDockTap('menu')">MENU</div>
-    <div class="btn" id="btn-edit" style="display:none"></div>
-    <div class="btn" id="btn-custom" onclick="handleDockTap('custom')">CUSTOM</div>
-    <div class="btn" id="btn-qsave" onclick="triggerQSave()">QSAVE</div>
-</div>
-
-<div class="overlay" id="overlay-menu">
-    <div class="m-list">
-        <div class="m-row"><div class="m-item" onclick="setMode('edit')">EDIT</div><div class="m-item" onclick="switchOverlay('color')">BRUSH</div></div>
-        <div class="m-row"><div class="m-item" onclick="loadFile('load')">LOAD</div><div class="m-item" onclick="loadFile('import')">IMPORT</div></div>
-        <div class="m-item" onclick="switchOverlay('tools')">TOOLS</div>
-        <div class="m-item" onclick="switchOverlay('vault')">VAULTS</div>
+    <div id="viewport">
+        <canvas id="main-canvas"></canvas>
+        <canvas id="temp-canvas"></canvas>
     </div>
-</div>
 
-<div class="overlay" id="overlay-color">
-    <div class="panel">
-        <canvas id="brush-preview" width="80" height="80" style="border-radius:50%; border:2px solid #fff;"></canvas>
-        <input type="color" id="native-color" value="#00ffff" style="width:100%; height:50px; background:none; border:none; cursor:pointer;">
-        <div style="margin-top:-10px;">TAP COLOR ABOVE</div>
-        <div style="width:100%; text-align:left;">BRUSH SIZE</div><input type="range" id="slider-size" min="1" max="100" value="20">
-        <div style="width:100%; text-align:left;">DARK TO LIGHT</div><input type="range" id="slider-lightness" min="-50" max="50" value="0">
-        <div style="width:100%; text-align:left;">GLOW</div><input type="range" id="slider-glow" min="0" max="50" value="0">
-        <div class="btn" style="width:100%; border-color:#444;" onclick="switchOverlay('menu')">BACK</div>
+    <!-- DROP-UP: MENU -->
+    <div id="ladder-menu" class="ladder">
+        <div class="ladder-btn" onclick="loadFile('load')">LOAD</div>
+        <div class="ladder-btn" onclick="loadFile('import')">IMPORT</div>
+        <div class="ladder-btn" onclick="triggerSave()">SAVE</div>
+        <div class="ladder-btn" onclick="alert('Vaults coming soon!')">VAULTS</div>
     </div>
-</div>
 
-<div class="overlay" id="overlay-custom">
-    <div class="m-list">
-        <div class="m-row"><div class="m-item" onclick="setMode('edit')">FAV 1: EDIT</div><div class="m-item" onclick="applyTool('STICKER')">FAV 2: STICKER</div></div>
-        <div class="m-row"><div class="m-item" onclick="applyTool('TEXT')">FAV 3: TEXT</div><div class="m-item" onclick="triggerSave()">FAV 4: SAVE</div></div>
-        <div class="m-item" onclick="switchOverlay('menu')">BACK</div>
-    </div>
-</div>
-
-<div class="overlay" id="overlay-tools">
-    <div class="grid">
-        <div class="g-btn" onclick="applyTool('STICKER')">STICKER</div><div class="g-btn" onclick="applyTool('ERASER')">ERASER</div><div class="g-btn" onclick="applyTool('UNDO')">UNDO</div>
-        <div class="g-btn" onclick="applyTool('SMOOTH')">SMOOTH</div><div class="g-btn" onclick="applyTool('TEXT')">TEXT</div><div class="g-btn" onclick="applyTool('CUT')">CUT</div>
-        <div class="g-btn" onclick="applyTool('COPY')">COPY</div><div class="g-btn" onclick="applyTool('PASTE')">PASTE</div><div class="g-btn" onclick="applyTool('FILL')">FILL</div>
-        <div class="g-btn" onclick="applyTool('PICKER')">PICKER</div><div class="g-btn" onclick="triggerAI()">PH...AI</div><div class="g-btn" onclick="switchOverlay('menu')">BACK</div>
-    </div>
-    <div class="r-colors" id="recent-colors-box"></div>
-</div>
-
-<div class="overlay" id="overlay-vault">
-    <div class="v-wrap" id="vault-list"></div>
-</div>
-
-<script>
-// UTILS & STATE
-const $ = id => document.getElementById(id), $$ = q => document.querySelectorAll(q);
-const app = { activeMode: null, activeTool: null, loadedName: "export", penColor: '#00ffff', penSize: 20, glow: 0, baseHex: '#00ffff', recentColors: [], undo: [], vaults: [null, null], vaultIdx: 0, panX: 0, panY: 0, scale: 1, internalClipboard: null };
-const viewport = $('viewport'), main = $('main-canvas'), temp = $('temp-canvas'), mctx = main.getContext('2d'), tctx = temp.getContext('2d');
-
-function init() {
-    main.width = temp.width = innerWidth; main.height = temp.height = innerHeight;
-    main.style.width = temp.style.width = innerWidth + 'px'; main.style.height = temp.style.height = innerHeight + 'px';
-    mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round';
-    
-    let vHtml = ''; 
-    for(let i=0; i<2; i++) {
-        app.vaults[i] = localStorage.getItem('v'+i);
-        vHtml += `<div class="v-box"><span style="position:absolute; margin:5px; font-size:10px; color:#888; font-weight:bold;">VAULT ${i+1}</span><img class="v-img" id="img-v${i}" src="${app.vaults[i]||''}"><div class="v-bar"><div onclick="vaultAct(${i},'load')">LOAD</div><div onclick="vaultAct(${i},'save')">SAVE AS</div><div onclick="setMode(null)">EXIT</div></div></div>`;
-    }
-    $('vault-list').innerHTML = vHtml; updateColor(); pushUndo('init');
-
-    if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('sw.js').catch(err => console.log("SW failed", err));
-        });
-    }
-}
-
-// NAVIGATION
-function setMode(m) {
-    $$('.btn').forEach(b => b.classList.remove('active')); $$('.overlay').forEach(o => o.style.display = 'none');
-    app.activeMode = m; app.activeTool = (m === 'edit') ? 'PAINTBRUSH' : null;
-    if(m === 'menu' || m === 'custom') { $(`btn-${m}`).classList.add('active'); switchOverlay(m); }
-    else if(m === 'edit') $('btn-edit').classList.add('active');
-}
-
-function handleDockTap(m) {
-    const btn = $('btn-menu');
-    if(m === 'menu' && btn.innerText !== 'MENU' && btn.innerText !== 'THINKING...') { btn.innerText = 'MENU'; setMode('menu'); switchOverlay('tools'); return; }
-    if(app.activeMode === m) { setMode(null); if(m === 'menu') btn.innerText = 'MENU'; }
-    else if(!app.activeMode || app.activeMode === 'edit') setMode(m);
-}
-
-function switchOverlay(to) { $$('.overlay').forEach(o => o.style.display = 'none'); if(to !== 'none') $(`overlay-${to}`).style.display = 'flex'; }
-
-function applyTool(t) {
-    if(t === 'UNDO') return performUndo();
-    app.activeTool = t; $('btn-menu').innerText = t; switchOverlay('none');
-    if(t === 'STICKER') loadFile('sticker');
-}
-
-// UNIFIED FILE LOADER
-function loadFile(type) {
-    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
-    inp.onchange = e => {
-        const file = e.target.files[0]; if(!file) return;
-        if(type === 'load') app.loadedName = file.name.split('.')[0];
-        const reader = new FileReader();
-        reader.onload = ev => {
-            const img = new Image();
-            img.onload = () => {
-                if(type === 'load') {
-                    main.width = temp.width = img.width; main.height = temp.height = img.height;
-                    main.style.width = temp.style.width = img.width+'px'; main.style.height = temp.style.height = img.height+'px';
-                    app.scale = Math.min(innerWidth/img.width, innerHeight/img.height) * 0.9;
-                    app.panX = (innerWidth - img.width * app.scale) / 2; app.panY = (innerHeight - img.height * app.scale) / 2;
-                    viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
-                    mctx.clearRect(0, 0, main.width, main.height); mctx.drawImage(img, 0, 0);
-                } else {
-                    const rect = temp.getBoundingClientRect();
-                    const cx = (innerWidth/2 - rect.left) / app.scale, cy = (innerHeight/2 - rect.top) / app.scale;
-                    const r = Math.min((innerWidth/app.scale)/img.width, (innerHeight/app.scale)/img.height) * (type==='import'?0.8:1);
-                    tctx.drawImage(img, cx - (img.width*r)/2, cy - (img.height*r)/2, img.width*r, img.height*r);
-                }
-                pushUndo(type); setMode(null);
-            };
-            img.src = ev.target.result;
-        };
-        reader.readAsDataURL(file);
-    };
-    inp.click();
-}
-
-// COLORS
-function updateColor() {
-    app.penSize = +$('slider-size').value; app.glow = +$('slider-glow').value; const l = +$('slider-lightness').value;
-    app.penColor = `color-mix(in srgb, ${app.baseHex}, ${l<0?'black':'white'} ${Math.abs(l)}%)`;
-    const c = $('brush-preview'), ctx = c.getContext('2d');
-    ctx.clearRect(0,0,c.width,c.height); ctx.beginPath(); ctx.arc(40,40,app.penSize/2,0,Math.PI*2);
-    ctx.fillStyle = ctx.shadowColor = app.penColor; ctx.shadowBlur = app.glow; ctx.fill();
-}
-$('native-color').oninput = e => { app.baseHex = e.target.value; updateColor(); };
-['size','lightness','glow'].forEach(id => $(`slider-${id}`).oninput = updateColor);
-
-function addColor(c) {
-    if(app.recentColors[0] === c) return;
-    app.recentColors = [c, ...app.recentColors.filter(x => x !== c)].slice(0,10);
-    $('recent-colors-box').innerHTML = app.recentColors.map(x => `<div class="swatch" style="background:${x}" onclick="app.penColor='${x}';setMode(null)"></div>`).join('');
-}
-
-// TOUCH EVENTS
-let isDraw=false, isPan=false, sx=0, sy=0, dist=0, px=0, py=0, lx=0, ly=0;
-const getC = e => { const t = e.touches?e.touches[0]:e, r = temp.getBoundingClientRect(); return { x: (t.clientX-r.left)/app.scale, y: (t.clientY-r.top)/app.scale }; };
-
-viewport.addEventListener('touchstart', e => {
-    const t = app.activeTool, m = app.activeMode, c = getC(e);
-    if((m === 'edit' || (m === 'menu' && t === 'ERASER')) && e.touches.length === 1) { isDraw=true; lx=c.x; ly=c.y; return; }
-    if(m === 'menu' && t && t !== 'STICKER') {
-        if(t === 'PICKER') { const p = mctx.getImageData(c.x, c.y, 1, 1).data; app.penColor=`rgb(${p[0]},${p[1]},${p[2]})`; updateColor(); }
-        else if(t === 'TEXT') { const txt=prompt("Text:"); if(txt){ tctx.font=`${app.penSize*2}px monospace`; tctx.fillStyle=app.penColor; tctx.fillText(txt,c.x,c.y); pushUndo('text'); } }
-        else if(t === 'PASTE' && app.internalClipboard) { mctx.putImageData(app.internalClipboard, c.x, c.y); pushUndo('paste'); setMode(null); }
-        else if(t === 'FILL') { tctx.fillStyle=app.penColor; tctx.fillRect(0,0,temp.width,temp.height); pushUndo('fill'); }
-        else if(t === 'CUT' || t === 'COPY') { window.dx=c.x; window.dy=c.y; isDraw=true; }
-        else if(t === 'SMOOTH') { isDraw=true; lx=c.x; ly=c.y; }
-        return;
-    }
-    if(m === 'edit') return;
-    if(e.touches.length === 1) { isPan=true; sx = e.touches[0].clientX-app.panX; sy = e.touches[0].clientY-app.panY; }
-    else if(e.touches.length === 2) { isPan=false; dist = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY); px = (e.touches[0].clientX+e.touches[1].clientX)/2; py = (e.touches[0].clientY+e.touches[1].clientY)/2; }
-}, {passive:false});
-
-viewport.addEventListener('touchmove', e => {
-    e.preventDefault(); const t = app.activeTool, m = app.activeMode, c = getC(e);
-    if(isDraw) {
-        if(t === 'CUT' || t === 'COPY') {
-            tctx.clearRect(0,0,temp.width,temp.height); tctx.strokeStyle='#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth=2/app.scale;
-            tctx.strokeRect(window.dx, window.dy, c.x-window.dx, c.y-window.dy); tctx.setLineDash([]);
-        } else {
-            tctx.lineCap='round'; tctx.lineWidth=app.penSize/app.scale;
-            if(m === 'menu' && t === 'ERASER') tctx.globalCompositeOperation='destination-out';
-            else { tctx.globalCompositeOperation='source-over'; tctx.strokeStyle=app.penColor; }
-            if(t === 'SMOOTH') { tctx.filter='blur(4px)'; tctx.strokeStyle='rgba(255,255,255,0.1)'; }
-            tctx.beginPath(); tctx.moveTo(lx,ly); tctx.lineTo(c.x,c.y); tctx.stroke(); tctx.filter='none'; lx=c.x; ly=c.y;
-        }
-        return;
-    }
-    if(m === 'edit' || m === 'menu') return;
-    if(e.touches.length === 1 && isPan) { app.panX = e.touches[0].clientX-sx; app.panY = e.touches[0].clientY-sy; }
-    else if(e.touches.length === 2 && dist>0) {
-        const nd = Math.hypot(e.touches[0].clientX-e.touches[1].clientX, e.touches[0].clientY-e.touches[1].clientY), ns = Math.min(Math.max(0.2, app.scale*(nd/dist)), 145);
-        app.panX = px - (px-app.panX)*(ns/app.scale); app.panY = py - (py-app.panY)*(ns/app.scale); app.scale = ns; dist = nd;
-        px = (e.touches[0].clientX+e.touches[1].clientX)/2; py = (e.touches[0].clientY+e.touches[1].clientY)/2;
-    }
-    viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
-}, {passive:false});
-
-window.addEventListener('touchend', e => {
-    if(isDraw) {
-        isDraw=false; const t = app.activeTool;
-        if(t === 'CUT' || t === 'COPY') {
-            const c = getC(e.changedTouches[0]), w=c.x-window.dx, h=c.y-window.dy; tctx.clearRect(0,0,temp.width,temp.height);
-            if(Math.abs(w)>5 && Math.abs(h)>5) { app.internalClipboard = mctx.getImageData(window.dx, window.dy, w, h); if(t === 'CUT') { mctx.clearRect(window.dx, window.dy, w, h); pushUndo('cut'); } }
-            setMode(null);
-        } else { pushUndo('stroke'); addColor(app.penColor); }
-    }
-    isPan=false;
-});
-
-// VAULTS & UNDO
-function pushUndo(type) { if(app.undo.length>=3) app.undo.shift(); app.undo.push({ type, d: temp.toDataURL() }); }
-function performUndo() {
-    if(app.undo.length<=1) return; const u = app.undo.pop(), p = app.undo[app.undo.length-1];
-    if(u.type === 'qsave' && app.vaults[app.vaultIdx]) { const mImg = new Image(); mImg.onload=()=>{mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(mImg,0,0);}; mImg.src = app.vaults[app.vaultIdx]; }
-    const tImg = new Image(); tImg.onload=()=>{tctx.clearRect(0,0,temp.width,temp.height); tctx.drawImage(tImg,0,0);}; tImg.src = p.d;
-}
-
-function triggerSave() { 
-    const l = document.createElement('a'); 
-    l.download = app.loadedName+'.png'; 
-    mctx.drawImage(temp,0,0); 
-    tctx.clearRect(0,0,temp.width,temp.height);
-    l.href = main.toDataURL(); 
-    l.click(); 
-}
-function triggerQSave() {
-    mctx.drawImage(temp,0,0); tctx.clearRect(0,0,temp.width,temp.height); pushUndo('qsave');
-    app.vaults[app.vaultIdx] = main.toDataURL('image/jpeg',0.8); localStorage.setItem('v'+app.vaultIdx, app.vaults[app.vaultIdx]);
-    $(`img-v${app.vaultIdx}`).src = app.vaults[app.vaultIdx]; app.vaultIdx = (app.vaultIdx+1)%2;
-    const b = $('btn-qsave'); b.classList.add('qsave-active'); setTimeout(()=>b.classList.remove('qsave-active'), 2000);
-}
-function vaultAct(i, act) {
-    const d = app.vaults[i]; if(!d) return;
-    if(act === 'load') { const img = new Image(); img.onload=()=>{mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height); pushUndo('load'); setMode(null);}; img.src=d; }
-    else { const l = document.createElement('a'); l.download = `Vault_${i+1}.png`; l.href = d; l.click(); }
-}
-
-// AI INTEGRATION
-function getApiKey() {
-    let key = localStorage.getItem('saved_api_key');
-    if (!key) {
-        key = prompt("Please enter your Google Gemini API Key:");
-        if (key) localStorage.setItem('saved_api_key', key);
-    }
-    return key;
-}
-
-async function triggerAI() {
-    const apiKey = getApiKey();
-    if (!apiKey) return alert("AI canceled. API key required.");
-
-    const userPrompt = prompt("Ask the AI about your drawing:", "What does this look like?");
-    if (!userPrompt) return;
-
-    $('btn-menu').innerText = 'THINKING...';
-    switchOverlay('none');
-
-    try {
-        const snap = document.createElement('canvas');
-        snap.width = temp.width; snap.height = temp.height;
-        const sctx = snap.getContext('2d');
-        sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, snap.width, snap.height);
-        sctx.drawImage(main, 0, 0); sctx.drawImage(temp, 0, 0);
+    <!-- DROP-UP: COLOR & BRUSH -->
+    <div id="ladder-color" class="ladder">
+        <div style="width:100%; display:flex; justify-content:center; margin-bottom:10px;">
+            <canvas id="brush-preview" width="60" height="60" style="border-radius:50%; border:2px solid #fff;"></canvas>
+        </div>
         
-        const base64Image = snap.toDataURL('image/jpeg', 0.8).split(',')[1];
+        <div class="slider-label" style="text-align:center; color:var(--neon);" id="color-hex-label">#00ffff</div>
+        <input type="color" id="native-color" value="#00ffff">
+        
+        <div class="slider-label">BRUSH SIZE</div>
+        <input type="range" id="slider-size" min="1" max="100" value="20">
+        
+        <div class="slider-label">DARK TO LIGHT</div>
+        <input type="range" id="slider-lightness" min="-50" max="50" value="0">
+        
+        <div class="slider-label">GLOW</div>
+        <input type="range" id="slider-glow" min="0" max="50" value="0">
+    </div>
 
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }] })
+    <!-- DROP-UP: TOOLS -->
+    <div id="ladder-tools" class="ladder">
+        <div class="ladder-btn tool-btn active-btn" id="tool-brush" onclick="activateTool(this, 'PAINTBRUSH')">BRUSH</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'ERASER')">ERASER</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'PICKER')">PICKER</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'FILL')">FILL</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'TEXT')">TEXT</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'CUT')">CUT</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'COPY')">COPY</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'PASTE')">PASTE</div>
+        <div class="ladder-btn tool-btn" onclick="performUndo()">UNDO</div>
+        <div class="ladder-btn tool-btn" onclick="triggerAI()" style="border-color:#ff00ff; color:#ff00ff;">AI</div>
+    </div>
+
+    <!-- BOTTOM DOCK -->
+    <div class="dock">
+        <div class="dock-btn" id="dock-menu" onclick="toggleLadder('menu')">MENU</div>
+        <div class="dock-btn active-btn" id="dock-edit" onclick="toggleEdit()">EDIT</div>
+        <div class="dock-btn" id="dock-color" onclick="toggleLadder('color')" style="border-color: #00ffff; color: #00ffff; text-shadow: 0 0 8px #00ffff;">COLOR</div>
+        <div class="dock-btn" id="dock-tools" onclick="toggleLadder('tools')">TOOLS</div>
+        <div class="dock-btn" id="dock-qsave" onclick="triggerQSave()">QSAVE</div>
+    </div>
+
+    <script>
+        // --- UI & STATE MANAGEMENT ---
+        let currentlyOpenLadder = null;
+        let isEditMode = true; // Starts on by default
+        
+        const app = {
+            activeTool: 'PAINTBRUSH',
+            baseHex: localStorage.getItem('saved_base_hex') || '#00ffff',
+            penColor: localStorage.getItem('saved_pen_color') || '#00ffff',
+            penSize: localStorage.getItem('saved_size') || 20,
+            glow: localStorage.getItem('saved_glow') || 0,
+            panX: 0, panY: 0, scale: 1,
+            undo: []
+        };
+
+        const $ = id => document.getElementById(id);
+        const viewport = $('viewport'), main = $('main-canvas'), temp = $('temp-canvas');
+        const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
+
+        function init() {
+            main.width = temp.width = window.innerWidth;
+            main.height = temp.height = window.innerHeight;
+            main.style.width = temp.style.width = window.innerWidth + 'px';
+            main.style.height = temp.style.height = window.innerHeight + 'px';
+            mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round';
+            
+            $('native-color').value = app.baseHex;
+            $('slider-size').value = app.penSize;
+            $('slider-glow').value = app.glow;
+            
+            applyColorToUI();
+            pushUndo('init');
+        }
+
+        function toggleLadder(ladderName) {
+            $('ladder-menu').style.display = 'none';
+            $('ladder-tools').style.display = 'none';
+            $('ladder-color').style.display = 'none';
+            $('dock-menu').classList.remove('active-btn');
+            $('dock-tools').classList.remove('active-btn');
+
+            if (currentlyOpenLadder === ladderName) {
+                currentlyOpenLadder = null;
+                return;
+            }
+
+            $('ladder-' + ladderName).style.display = 'flex';
+            currentlyOpenLadder = ladderName;
+
+            if (ladderName !== 'color') $('dock-' + ladderName).classList.add('active-btn');
+        }
+
+        // --- ZEN MODE EDIT BUTTON ---
+        function toggleEdit() {
+            isEditMode = !isEditMode;
+            const editBtn = $('dock-edit');
+            
+            if (isEditMode) {
+                editBtn.classList.add('active-btn');
+                
+                // Zen Mode: Close all ladders instantly
+                $('ladder-menu').style.display = 'none';
+                $('ladder-tools').style.display = 'none';
+                $('ladder-color').style.display = 'none';
+                $('dock-menu').classList.remove('active-btn');
+                $('dock-tools').classList.remove('active-btn');
+                currentlyOpenLadder = null;
+
+                // Force paintbrush mode if we had a non-drawing tool active
+                if(app.activeTool !== 'PAINTBRUSH' && app.activeTool !== 'ERASER') {
+                    app.activeTool = 'PAINTBRUSH';
+                    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+                    $('tool-brush').classList.add('active-btn');
+                }
+            } else {
+                editBtn.classList.remove('active-btn');
+            }
+        }
+
+        function activateTool(element, toolName) {
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active-btn'));
+            element.classList.add('active-btn');
+            app.activeTool = toolName;
+            
+            // If they pick a tool, make sure Edit mode gets turned on so they can use it
+            if(!isEditMode) {
+                isEditMode = true;
+                $('dock-edit').classList.add('active-btn');
+            }
+        }
+
+        // --- COLOR SYSTEM & PREVIEW ---
+        function updateColorFromSliders() {
+            app.penSize = parseInt($('slider-size').value);
+            app.glow = parseInt($('slider-glow').value);
+            app.baseHex = $('native-color').value;
+            const lightness = parseInt($('slider-lightness').value);
+            
+            app.penColor = `color-mix(in srgb, ${app.baseHex}, ${lightness < 0 ? 'black' : 'white'} ${Math.abs(lightness)}%)`;
+            
+            localStorage.setItem('saved_base_hex', app.baseHex);
+            localStorage.setItem('saved_pen_color', app.penColor);
+            localStorage.setItem('saved_size', app.penSize);
+            localStorage.setItem('saved_glow', app.glow);
+
+            applyColorToUI();
+        }
+
+        function applyColorToUI() {
+            const dockColor = $('dock-color');
+            dockColor.style.borderColor = app.penColor;
+            dockColor.style.color = app.penColor;
+            dockColor.style.textShadow = `0 0 8px ${app.penColor}`;
+            document.documentElement.style.setProperty('--neon', app.penColor);
+            $('color-hex-label').innerText = app.baseHex.toUpperCase();
+
+            // Draw the brush preview circle
+            const pCtx = $('brush-preview').getContext('2d');
+            pCtx.clearRect(0, 0, 60, 60);
+            pCtx.beginPath();
+            pCtx.arc(30, 30, Math.min(app.penSize, 60) / 2, 0, Math.PI*2);
+            pCtx.fillStyle = app.penColor;
+            pCtx.shadowColor = app.penColor;
+            pCtx.shadowBlur = app.glow;
+            pCtx.fill();
+        }
+
+        $('native-color').oninput = updateColorFromSliders;
+        $('slider-size').oninput = updateColorFromSliders;
+        $('slider-lightness').oninput = updateColorFromSliders;
+        $('slider-glow').oninput = updateColorFromSliders;
+
+        // --- TOUCH CONTROLS (DYNAMIC SCALING) ---
+        let isDraw = false, isPan = false, sx=0, sy=0, dist=0, px=0, py=0, lx=0, ly=0;
+        
+        const getC = e => { 
+            const t = e.touches ? e.touches[0] : e;
+            const r = temp.getBoundingClientRect(); 
+            return { x: (t.clientX - r.left) / app.scale, y: (t.clientY - r.top) / app.scale }; 
+        };
+
+        viewport.addEventListener('touchstart', e => {
+            const c = getC(e);
+            
+            if (e.touches.length === 2) {
+                isDraw = false; isPan = false;
+                dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                return;
+            }
+
+            if (e.touches.length === 1) {
+                if (isEditMode) {
+                    isDraw = true; lx = c.x; ly = c.y;
+
+                    if (app.activeTool === 'PICKER') {
+                        const p = mctx.getImageData(c.x, c.y, 1, 1).data;
+                        if(p[3] > 0) {
+                            const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1);
+                            $('native-color').value = hex;
+                            $('slider-lightness').value = 0; 
+                            updateColorFromSliders();
+                        }
+                        isDraw = false; 
+                    } 
+                    else if (app.activeTool === 'FILL') {
+                        tctx.fillStyle = app.penColor; tctx.fillRect(0, 0, temp.width, temp.height); pushUndo('fill'); isDraw = false;
+                    }
+                    else if (app.activeTool === 'TEXT') {
+                        const txt = prompt("Enter text:");
+                        if (txt) { tctx.font = `${app.penSize * 2}px monospace`; tctx.fillStyle = app.penColor; tctx.fillText(txt, c.x, c.y); pushUndo('text'); }
+                        isDraw = false;
+                    }
+                    else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.dx = c.x; window.dy = c.y; }
+                    else if (app.activeTool === 'PASTE' && window.clipboard) { createImageBitmap(window.clipboard).then(img => { tctx.drawImage(img, c.x, c.y); pushUndo('paste'); }); isDraw = false; }
+                } else {
+                    isPan = true; sx = e.touches[0].clientX - app.panX; sy = e.touches[0].clientY - app.panY;
+                }
+            }
+        }, {passive: false});
+
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault(); 
+            const c = getC(e);
+
+            if (e.touches.length === 2 && dist > 0) {
+                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                const ns = Math.min(Math.max(0.2, app.scale * (nd / dist)), 150); 
+                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
+                app.scale = ns; dist = nd;
+                px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                return;
+            }
+
+            if (e.touches.length === 1 && isPan && !isEditMode) {
+                app.panX = e.touches[0].clientX - sx; app.panY = e.touches[0].clientY - sy;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                return;
+            }
+
+            if (e.touches.length === 1 && isDraw && isEditMode) {
+                if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    tctx.clearRect(0, 0, temp.width, temp.height);
+                    tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale;
+                    tctx.strokeRect(window.dx, window.dy, c.x - window.dx, c.y - window.dy); tctx.setLineDash([]);
+                } 
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
+                    tctx.lineCap = 'round'; 
+                    
+                    // THIS IS THE DYNAMIC SCALING MATH!
+                    tctx.lineWidth = app.penSize / app.scale;
+                    
+                    tctx.shadowBlur = app.glow / app.scale;
+                    tctx.shadowColor = app.glow > 0 ? app.penColor : 'transparent';
+                    
+                    if (app.activeTool === 'ERASER') { tctx.globalCompositeOperation = 'destination-out'; tctx.shadowBlur = 0; } 
+                    else { tctx.globalCompositeOperation = 'source-over'; tctx.strokeStyle = app.penColor; }
+
+                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); lx = c.x; ly = c.y;
+                }
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', e => {
+            if (isDraw) {
+                isDraw = false;
+                if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    const c = getC(e.changedTouches[0]);
+                    const w = c.x - window.dx, h = c.y - window.dy; tctx.clearRect(0,0, temp.width, temp.height); 
+                    if (Math.abs(w) > 5 && Math.abs(h) > 5) { 
+                        window.clipboard = mctx.getImageData(window.dx, window.dy, w, h); 
+                        if (app.activeTool === 'CUT') { mctx.clearRect(window.dx, window.dy, w, h); pushUndo('cut'); } 
+                        alert("Copied!");
+                    }
+                } 
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo('stroke'); }
+            }
+            isPan = false;
         });
-        const data = await res.json();
 
-        if (data.error) {
-            alert("AI Error: " + data.error.message);
-            if(data.error.code === 400 || data.error.c
+        // --- FILE & UNDO ---
+        function triggerSave() { const l = document.createElement('a'); l.download = 'Studio_Export.png'; mctx.drawImage(temp, 0, 0); l.href = main.toDataURL(); l.click(); }
+        function triggerQSave() {
+            mctx.drawImage(temp, 0, 0); tctx.clearRect(0, 0, temp.width, temp.height); pushUndo('qsave');
+            const btn = $('dock-qsave'); btn.style.borderColor = '#2e5bff'; btn.style.color = '#2e5bff';
+            setTimeout(() => { btn.style.borderColor = ''; btn.style.color = ''; }, 500);
+        }
+
+        function loadFile(type) {
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+            inp.onchange = e => {
+                const file = e.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const img = new Image();
+                    img.onload = () => {
+                        if(type === 'load') {
+                            main.width = temp.width = img.width; main.height = temp.height = img.height;
+                            main.style.width = temp.style.width = img.width+'px'; main.style.height = temp.style.height = img.height+'px';
+                            app.scale = Math.min(window.innerWidth/img.width, window.innerHeight/img.height) * 0.9;
+                            app.panX = (window.innerWidth - img.width * app.scale) / 2; app.panY = (window.innerHeight - img.height * app.scale) / 2;
+                            viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                            mctx.clearRect(0, 0, main.width, main.height); mctx.drawImage(img, 0, 0); tctx.clearRect(0, 0, temp.width, temp.height);
+                        } else {
+                            const rect = temp.getBoundingClientRect();
+                            const cx = (window.innerWidth/2 - rect.left) / app.scale, cy = (window.innerHeight/2 - rect.top) / app.scale;
+                            const r = Math.min((window.innerWidth/app.scale)/img.width, (window.innerHeight/app.scale)/img.height) * 0.8;
+                            tctx.drawImage(img, cx - (img.width*r)/2, cy - (img.height*r)/2, img.width*r, img.height*r);
+                        }
+                        pushUndo(type); toggleLadder('menu'); 
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataUR
