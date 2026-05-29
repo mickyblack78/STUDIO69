@@ -359,8 +359,14 @@
                     }app.activeTool = null;
                         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
                 } 
+                }
+                else if (app.activeTool === 'PASTE' && window.clipboard) {
+                    const c = getC(e.changedTouches[0]);
+                    const pCanv = document.createElement('canvas'); pCanv.width = window.clipboard.width; pCanv.height = window.clipboard.height;
+                    pCanv.getContext('2d').putImageData(window.clipboard, 0, 0);
+                    tctx.drawImage(pCanv, c.x, c.y); pushUndo('paste');
+                }
                 else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo('stroke'); }
-            }
             isPan = false;
         });
 
