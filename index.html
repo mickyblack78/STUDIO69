@@ -389,3 +389,104 @@
                     img.src = ev.target.result;
                 };
                 reader.readAsDataURL(file);
+                
+                };
+            inp.click();
+        }
+
+        function pushUndo(type) { if(app.undo.length >= 5) app.undo.shift(); app.undo.push({ type, d: temp.toDataURL() }); }
+        function performUndo() {
+            if(app.undo.length <= 1) return; app.undo.pop(); 
+            const p = app.undo[app.undo.length-1]; const tImg = new Image(); 
+            tImg.onload = () => { tctx.clearRect(0, 0, temp.width, temp.height); tctx.drawImage(tImg, 0, 0); }; tImg.src = p.d;
+        }
+             // --- PAINT BUCKET (FLOOD FILL) ---
+        function floodFill(x, y, targetColorStr) {
+            const w = temp.width, h = temp.height;
+            x = Math.floor(x); y = Math.floor(y);
+            if (x < 0 || x >= w || y < 0 || y >= h) return;
+
+            // 1. Get the exact math values of your current pen color
+            const hc = document.createElement('canvas'); hc.width = 1; hc.height = 1;
+            const hctx = hc.getContext('2d');
+            hctx.fillStyle = targetColorStr; hctx.fillRect(0, 0, 1, 1);
+            const fRgba = hctx.getImageData(0, 0, 1, 1).data;
+
+            // 2. Take a hidden snapshot of BOTH layers so the fill respects imported images
+            const comp = document.createElement('canvas'); comp.width = w; comp.height = h;
+            const cctx = comp.getContext('2d');
+            cctx.drawImage(main, 0, 0); cctx.drawImage(temp, 0, 0);
+            const cData = cctx.getImageData(0, 0, w, h).data;
+
+            // 3. Target your active drawing layer where the paint will actually go
+            const tImg = tctx.getImageData(0, 0, w, h);
+            const tData = tImg.data;
+
+            const startPos = (y * w + x) * 4;
+            const sR = cData[startPos], sG = cData[startPos+1], sB = cData[startPos+2], sA = cData[startPos+3];
+
+            // Stop if you tap the exact same color (prevents freezing)
+            if (fRgba[0] === sR && fRgba[1] === sG && fRgba[2] === sB && fRgba[3] === sA) return;
+
+            const match = p => cData[p] === sR && cData[p+1] === sG && cData[p+2] === sB && cData[p+3] === sA;
+            const set = p => { 
+                tData[p] = fRgba[0]; tData[p+1] = fRgba[1]; tData[p+2] = fRgba[2]; tData[p+3] = fRgba[3]; 
+                cData[p] = fRgba[0]; cData[p+1] = fRgba[1]; cData[p+2] = fRgba[2]; cData[p+3] = fRgba[3];
+            };
+
+            // Calculate how far the paint spills
+            const stack = [[x, y]];
+            while (stack.length > 0) {
+                let [cx, cy] = stack.pop();
+                let p = (cy * w + cx) * 4;
+                while (cy >= 0 && match(p)) { cy--; p -= w * 4; }
+                cy++; p += w * 4;
+                let reachL = false, reachR = false;
+                while (cy < h && match(p)) {
+                    set(p);
+                    if (cx > 0) {
+                        if (match(p - 4)) { if (!reachL) { stack.push([cx - 1, cy]); reachL = true; } } 
+                        else if (reachL) reachL = false;
+                    }
+                    if (cx < w - 1) {
+                        if (match(p + 4)) { if (!reachR) { stack.push([cx + 1, cy]); reachR = true; } } 
+                        else if (reachR) reachR = false;
+                    }
+                    cy++; p += w * 4;
+                }
+            }
+            // Apply the final puddle of paint to the screen
+            tctx.putImageData(tImg, 0, 0);
+        }
+
+        // --- AI ---
+        function getApiKey() {
+            let key = localStorage.getItem('saved_api_key');
+            if (!key) { key = prompt("Google Gemini API Key:"); if (key) localStorage.setItem('saved_api_key', key); }
+            return key;
+        }
+
+        async function triggerAI() {
+            const apiKey = getApiKey(); if (!apiKey) return;
+            const userPrompt = prompt("Ask the AI about your drawing:", "What does this look like?"); if (!userPrompt) return;
+            $('dock-tools').innerText = 'THINK...';
+            try {
+                const snap = document.createElement('canvas'); snap.width = temp.width; snap.height = temp.height;
+                const sctx = snap.getContext('2d'); sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, snap.width, snap.height);
+                sctx.drawImage(main, 0, 0); sctx.drawImage(temp, 0, 0);
+                const base64Image = snap.toDataURL('image/jpeg', 0.8).split(',')[1];
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }] })
+                });
+                const data = await res.json();
+                if (data.error) { alert("AI Error: " + data.error.message); if(data.error.code === 400 || data.error.code === 403) localStorage.removeItem('saved_api_key'); } 
+                else alert("GEMINI:\n\n" + data.candidates[0].content.parts[0].text);
+            } catch (e) { alert("Network Error."); }
+            $('dock-tools').innerText = 'TOOLS';
+        }
+
+        init();
+    </script>
+</body>
+</html>
