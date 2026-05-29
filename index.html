@@ -194,15 +194,15 @@
         }
 
         function activateTool(element, toolName) {
+            if (app.activeTool === toolName) {
+                element.classList.remove('active-btn');
+                app.activeTool = null;
+                return;
+            }
             document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active-btn'));
             element.classList.add('active-btn');
             app.activeTool = toolName;
-            
-            // If they pick a tool, make sure Edit mode gets turned on so they can use it
-            if(!isEditMode) {
-                isEditMode = true;
-                $('dock-edit').classList.add('active-btn');
-            }
+        }
         }
 
         // --- COLOR SYSTEM & PREVIEW ---
