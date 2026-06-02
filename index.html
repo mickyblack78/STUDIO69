@@ -1,1 +1,354 @@
-ddd
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#121212">
+    <link rel="icon" type="image/png" sizes="192x192" href="SMARTART.png">
+    <link rel="apple-touch-icon" href="SMARTART.png">
+    <link rel="manifest" href="./manifest.json">
+    
+    <title><DREAMER></title>
+    <style>
+        :root {
+            --bg: #050505; --panel: rgba(15, 15, 15, 0.95); --border: #333;
+            --neon: #00ffff; --active-bg: rgba(0, 255, 255, 0.1);
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; font-family: monospace; }
+        body { background: var(--bg); height: 100vh; width: 100vw; overflow: hidden; color: #666; }
+        #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+        canvas { position: absolute; top: 0; left: 0; display: block; }
+        #temp-canvas { z-index: 20; }
+        .dock {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 96%; max-width: 500px;
+            display: flex; justify-content: space-between; background: var(--panel); padding: 10px;
+            border-radius: 40px; border: 1px solid var(--border); z-index: 9999;
+        }
+        .dock-btn {
+            flex: 1; height: 50px; margin: 0 4px; border-radius: 25px; border: 1px solid var(--border);
+            background: #111; display: flex; align-items: center; justify-content: center;
+            color: #888; font-size: 11px; font-weight: 900; transition: 0.2s; cursor: pointer;
+        }
+        .active-btn { border-color: var(--neon) !important; color: var(--neon) !important; background: var(--active-bg); box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+        .ladder {
+            position: fixed; right: 15px; bottom: 100px; display: none; flex-direction: column; gap: 8px;
+            z-index: 9998; width: 90px; max-height: 70vh; overflow-y: auto; padding-right: 5px;
+        }
+        .ladder::-webkit-scrollbar { display: none; }
+        .ladder-btn {
+            width: 100%; min-height: 50px; background: var(--panel); border: 1px solid var(--border);
+            border-radius: 12px; display: flex; align-items: center; justify-content: center;
+            color: #aaa; font-size: 10px; font-weight: bold; cursor: pointer; text-align: center;
+        }
+        #ladder-color { width: 150px; background: var(--panel); padding: 15px; border-radius: 20px; border: 1px solid var(--border); }
+        .slider-label { font-size: 10px; color: #888; margin-top: 10px; margin-bottom: 5px; }
+        input[type="range"] { width: 100%; margin-bottom: 10px; }
+        input[type="color"] { width: 100%; height: 40px; border: none; background: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <canvas id="main-canvas"></canvas>
+        <canvas id="temp-canvas"></canvas>
+    </div>
+
+    <div id="ladder-menu" class="ladder">
+        <div class="ladder-btn" onclick="loadFile('load')">LOAD</div>
+        <div class="ladder-btn" onclick="loadFile('import')">IMPORT</div>
+        <div class="ladder-btn" onclick="triggerSave()">SAVE</div>
+        <div class="ladder-btn" onclick="vaultAct(0)">LOAD V1</div>
+        <div class="ladder-btn" onclick="vaultAct(1)">LOAD V2</div>
+    </div>
+
+    <div id="ladder-color" class="ladder">
+        <div style="width:100%; display:flex; justify-content:center; margin-bottom:10px;">
+            <canvas id="brush-preview" width="60" height="60" style="border-radius:50%; border:2px solid #fff;"></canvas>
+        </div>
+        <div class="slider-label" style="text-align:center; color:var(--neon);" id="color-hex-label">#00ffff</div>
+        <input type="color" id="native-color" value="#00ffff">
+        <div class="slider-label">BRUSH SIZE</div><input type="range" id="slider-size" min="1" max="100" value="20">
+        <div class="slider-label">DARK TO LIGHT</div><input type="range" id="slider-lightness" min="-50" max="50" value="0">
+        <div class="slider-label">GLOW</div><input type="range" id="slider-glow" min="0" max="50" value="0">
+    </div>
+
+    <div id="ladder-tools" class="ladder">
+        <div class="ladder-btn tool-btn active-btn" id="tool-brush" onclick="activateTool(this, 'PAINTBRUSH')">BRUSH</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'ERASER')">ERASER</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'PICKER')">PICKER</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'FILL')">FILL</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'TEXT')">TEXT</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'CUT')">CUT</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'COPY')">COPY</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'PASTE')">PASTE</div>
+        <div class="ladder-btn tool-btn" onclick="activateTool(this, 'SMOOTH')">SMOOTH</div>
+        <div class="ladder-btn tool-btn" onclick="performUndo()">UNDO</div>
+        <div class="ladder-btn tool-btn" onclick="triggerAI()" style="border-color:#ff00ff; color:#ff00ff;">AI</div>
+    </div>
+    <!-- TEXT STICKER UI -->
+    <div id="ui-text" style="display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); width:90%; max-width:350px; padding:20px; background:rgba(15,15,15,0.98); border:1px solid #333; border-radius:20px; flex-direction:column; z-index:9999;">
+        <input type="text" id="text-input" placeholder="Type here..." style="width:100%; height:40px; margin-bottom:15px; background:#111; color:#fff; border:1px solid #444; padding:10px; font-size:16px;">
+        <div style="color:#888; font-size:10px; margin-bottom:5px;">FONT STYLE</div>
+        <select id="text-font" style="width:100%; height:40px; margin-bottom:15px; background:#111; color:#fff; border:1px solid #444; padding:5px;">
+            <option value="monospace">Typewriter</option>
+            <option value="cursive">Cursive / Script</option>
+            <option value="sans-serif">Clean Bold</option>
+        </select>
+        <div style="color:#888; font-size:10px; margin-bottom:5px;">ROTATION</div>
+        <input type="range" id="text-rotate" min="0" max="360" value="0" style="width:100%; margin-bottom:20px;" oninput="drawTextPreview()">
+        <div style="display:flex; justify-content:space-between; gap:10px;">
+            <div class="dock-btn" onclick="startTextSticker()" style="border-color:#00ffff; color:#00ffff;">PLACE</div>
+            <div class="dock-btn" onclick="cancelTextSticker()">CANCEL</div>
+        </div>
+    </div>
+    
+    <div id="ui-text-confirm" style="display:none; position:fixed; bottom:100px; left:50%; transform:translateX(-50%); z-index:9999;">
+        <div class="dock-btn" onclick="confirmTextSticker()" style="width:150px; background:#00ffff; color:#000; font-weight:bold;">STAMP TEXT</div>
+    </div>
+    <div class="dock">
+        <div class="dock-btn" id="dock-menu" onclick="toggleLadder('menu')">MENU</div>
+        <div class="dock-btn active-btn" id="dock-edit" onclick="toggleEdit()">EDIT</div>
+        <div class="dock-btn" id="dock-color" onclick="toggleLadder('color')" style="border-color: #00ffff; color: #00ffff; text-shadow: 0 0 8px #00ffff;">COLOR</div>
+        <div class="dock-btn" id="dock-tools" onclick="toggleLadder('tools')">TOOLS</div>
+        <div class="dock-btn" id="dock-qsave" onclick="triggerQSave()">QSAVE</div>
+        
+    </div>
+
+    <script>
+        let currentlyOpenLadder = null;
+        let isEditMode = true; 
+        
+        const app = {
+            activeTool: 'PAINTBRUSH',
+            baseHex: localStorage.getItem('saved_base_hex') || '#00ffff',
+            penColor: localStorage.getItem('saved_pen_color') || '#00ffff',
+            penSize: localStorage.getItem('saved_size') || 20,
+            glow: localStorage.getItem('saved_glow') || 0,
+            panX: 0, panY: 0, scale: 1, undo: []
+        };
+
+        const $ = id => document.getElementById(id);
+        const viewport = $('viewport'), main = $('main-canvas'), temp = $('temp-canvas');
+        const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
+
+        function init() {
+            main.width = temp.width = window.innerWidth;
+            main.height = temp.height = window.innerHeight;
+            main.style.width = temp.style.width = window.innerWidth + 'px';
+            main.style.height = temp.style.height = window.innerHeight + 'px';
+            mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round';
+            
+            $('native-color').value = app.baseHex;
+            $('slider-size').value = app.penSize;
+            $('slider-glow').value = app.glow;
+            
+            applyColorToUI();
+            pushUndo('init');
+        }
+
+        function toggleLadder(ladderName) {
+            $('ladder-menu').style.display = 'none';
+            $('ladder-tools').style.display = 'none';
+            $('ladder-color').style.display = 'none';
+            $('dock-menu').classList.remove('active-btn');
+            $('dock-tools').classList.remove('active-btn');
+
+            if (currentlyOpenLadder === ladderName) {
+                currentlyOpenLadder = null;
+                return;
+            }
+            $('ladder-' + ladderName).style.display = 'flex';
+            currentlyOpenLadder = ladderName;
+            if (ladderName !== 'color') $('dock-' + ladderName).classList.add('active-btn');
+        }
+
+        function toggleEdit() {
+            isEditMode = !isEditMode;
+            const editBtn = $('dock-edit');
+            
+            if (isEditMode) {
+                editBtn.classList.add('active-btn');
+                $('ladder-menu').style.display = 'none';
+                $('ladder-tools').style.display = 'none';
+                $('ladder-color').style.display = 'none';
+                $('dock-menu').classList.remove('active-btn');
+                $('dock-tools').classList.remove('active-btn');
+                currentlyOpenLadder = null;
+
+                if(app.activeTool !== 'PAINTBRUSH' && app.activeTool !== 'ERASER') {
+                    app.activeTool = 'PAINTBRUSH';
+                    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+                    $('tool-brush').classList.add('active-btn');
+                }
+            } else { editBtn.classList.remove('active-btn'); }
+        }
+
+        function activateTool(element, toolName) {
+            if (toolName === 'TEXT') { openTextMenu(); return; }
+            if (app.activeTool === toolName) {
+                element.classList.remove('active-btn');
+                app.activeTool = null; return;
+            }
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active-btn'));
+            element.classList.add('active-btn');
+            app.activeTool = toolName;
+            if(!isEditMode) { isEditMode = true; $('dock-edit').classList.add('active-btn'); }
+        }
+
+        function updateColorFromSliders() {
+            app.penSize = parseInt($('slider-size').value);
+            app.glow = parseInt($('slider-glow').value);
+            app.baseHex = $('native-color').value;
+            const lightness = parseInt($('slider-lightness').value);
+            
+            app.penColor = `color-mix(in srgb, ${app.baseHex}, ${lightness < 0 ? 'black' : 'white'} ${Math.abs(lightness)}%)`;
+            
+            localStorage.setItem('saved_base_hex', app.baseHex);
+            localStorage.setItem('saved_pen_color', app.penColor);
+            localStorage.setItem('saved_size', app.penSize);
+            localStorage.setItem('saved_glow', app.glow);
+            applyColorToUI();
+        }
+
+        function applyColorToUI() {
+            const dockColor = $('dock-color');
+            dockColor.style.borderColor = app.penColor;
+            dockColor.style.color = app.penColor;
+            dockColor.style.textShadow = `0 0 8px ${app.penColor}`;
+            document.documentElement.style.setProperty('--neon', app.penColor);
+            $('color-hex-label').innerText = app.baseHex.toUpperCase();
+
+            const pCtx = $('brush-preview').getContext('2d');
+            pCtx.clearRect(0, 0, 60, 60); pCtx.beginPath();
+            pCtx.arc(30, 30, Math.min(app.penSize, 60) / 2, 0, Math.PI*2);
+            pCtx.fillStyle = app.penColor; pCtx.shadowColor = app.penColor; pCtx.shadowBlur = app.glow; pCtx.fill();
+        }
+
+        $('native-color').oninput = updateColorFromSliders;
+        $('slider-size').oninput = updateColorFromSliders;
+        $('slider-lightness').oninput = updateColorFromSliders;
+        $('slider-glow').oninput = updateColorFromSliders;
+        // --- TEXT STICKER LOGIC ---
+        let textObj = { txt: '', font: '', rot: 0, x: 100, y: 100, scale: 1 };
+        function openTextMenu() {
+            $('ui-text').style.display = 'flex';
+            toggleLadder('none'); // close other menus
+            window.dragBackup = tctx.getImageData(0, 0, temp.width, temp.height);
+        }
+        function startTextSticker() {
+            textObj.txt = $('text-input').value; textObj.font = $('text-font').value; textObj.rot = parseInt($('text-rotate').value);
+            if(!textObj.txt) return cancelTextSticker();
+            $('ui-text').style.display = 'none'; $('ui-text-confirm').style.display = 'block';
+            app.activeTool = 'TEXT_PLACE';
+            textObj.x = temp.width / 2; textObj.y = temp.height / 2; textObj.scale = 1;
+            drawTextPreview();
+        }
+        function cancelTextSticker() {
+            $('ui-text').style.display = 'none'; $('ui-text-confirm').style.display = 'none';
+            app.activeTool = null; document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+            tctx.putImageData(window.dragBackup, 0, 0);
+        }
+        function drawTextPreview() {
+            if(app.activeTool !== 'TEXT_PLACE') return;
+            textObj.rot = parseInt($('text-rotate').value);
+            tctx.putImageData(window.dragBackup, 0, 0);
+            tctx.save();
+            tctx.translate(textObj.x, textObj.y); tctx.rotate(textObj.rot * Math.PI / 180);
+            tctx.font = `${app.penSize * 2 * textObj.scale}px ${textObj.font}`;
+            tctx.fillStyle = app.penColor; tctx.fillText(textObj.txt, 0, 0);
+            tctx.restore();
+        }
+        function confirmTextSticker() {
+            $('ui-text-confirm').style.display = 'none'; pushUndo('text'); app.activeTool = null;
+            document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+        }
+        // --- TOUCH CONTROLS (DYNAMIC SCALING) ---
+        let isDraw = false, isPan = false, sx=0, sy=0, dist=0, px=0, py=0, lx=0, ly=0;
+        
+        const getC = e => { 
+            const t = e.touches ? e.touches[0] : e;
+            const r = temp.getBoundingClientRect(); 
+            return { x: (t.clientX - r.left) / app.scale, y: (t.clientY - r.top) / app.scale }; 
+        };
+
+        viewport.addEventListener('touchstart', e => {
+            const c = getC(e);
+            if (e.touches.length === 2) {
+                isDraw = false; isPan = false;
+                dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                return;
+            }
+            if (e.touches.length === 1) {
+                if (isEditMode) {
+                    isDraw = true; lx = c.x; ly = c.y;
+
+                    if (app.activeTool === 'PICKER') {
+                        const p = mctx.getImageData(c.x, c.y, 1, 1).data;
+                        if(p[3] > 0) {
+                            const hex = "#" + ((1 << 24) + (p[0] << 16) + (p[1] << 8) + p[2]).toString(16).slice(1);
+                            $('native-color').value = hex; $('slider-lightness').value = 0; 
+                            updateColorFromSliders();
+                        }
+                        isDraw = false; 
+                    } 
+                    else if (app.activeTool === 'FILL') {
+                        floodFill(c.x, c.y, app.penColor); pushUndo('fill'); isDraw = false;
+                    }
+                    else if (app.activeTool === 'TEXT_PLACE') { isDraw = true; lx = c.x; ly = c.y; }
+                    
+                    else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.dx = c.x; window.dy = c.y; }
+                    else if (app.activeTool === 'PASTE' && window.clipboard) { isDraw = true; }
+                    else if (app.activeTool === 'SMOOTH') {
+    isDraw = true;
+    window.smoothBuf = document.createElement('canvas');
+    window.smoothBuf.width = main.width; window.smoothBuf.height = main.height;
+    const bctx = window.smoothBuf.getContext('2d');
+    bctx.drawImage(main, 0, 0); bctx.drawImage(temp, 0, 0);
+                    }
+                } else {
+                    isPan = true; sx = e.touches[0].clientX - app.panX; sy = e.touches[0].clientY - app.panY;
+                }
+            }
+        }, {passive: false});
+
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault(); 
+            const c = getC(e);
+
+            if (e.touches.length === 2 && dist > 0) {
+                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                if (app.activeTool === 'TEXT_PLACE') {
+                    textObj.scale *= (nd / dist); dist = nd; drawTextPreview(); return;
+                }
+                const ns = Math.min(Math.max(0.2, app.scale * (nd / dist)), 150); 
+                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
+                app.scale = ns; dist = nd;
+                px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                return;
+            }
+
+            if (e.touches.length === 1 && isPan && !isEditMode) {
+                app.panX = e.touches[0].clientX - sx; app.panY = e.touches[0].clientY - sy;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                return;
+            }
+
+            if (e.touches.length === 1 && isDraw && isEditMode) {
+                if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    tctx.clearRect(0, 0, temp.width, temp.height);
+                    tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale;
+                    tctx.strokeRect(window.dx, window.dy, c.x - window.dx, c.y - window.dy); tctx.setLineDash([]);
+                } 
+                else if (app.activeTool === 'TEXT_PLACE') {
+                    textObj.x += (c.x - lx); textObj.y += (c.y - ly); lx = c.x; ly = c.y; drawTextPreview();
+                }     
+                else if (app.activeTool === 'PASTE' && window.clipboard) {
+                    tctx.clearRect(0, 0, temp.width, temp.height);
+                    if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1].d; tctx.drawImage(p, 0, 0); }
+                    const pCanv = document.createElement('canvas'); pCanv.width = window.clipboard.width; pCanv.height = window.clipboard.height;
+                    pCanv.getContext('2d').putImageData(window.clipboard, 0, 0);
+                    tctx.drawImage(pCanv, c.x, c.y);     
+                }
+                
