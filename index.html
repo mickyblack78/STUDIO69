@@ -8,7 +8,7 @@
     <link rel="apple-touch-icon" href="SMARTART.png">
     <link rel="manifest" href="./manifest.json">
     
-    <title><DREAMER></title>
+    <title>STUDIO69</title>
     <style>
         :root {
             --bg: #050505; --panel: rgba(15, 15, 15, 0.95); --border: #333;
@@ -351,4 +351,172 @@
                     pCanv.getContext('2d').putImageData(window.clipboard, 0, 0);
                     tctx.drawImage(pCanv, c.x, c.y);     
                 }
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
+                    tctx.lineCap = 'round'; tctx.lineWidth = app.penSize / app.scale;
+                    tctx.shadowBlur = app.glow / app.scale; tctx.shadowColor = app.glow > 0 ? app.penColor : 'transparent';
+                    if (app.activeTool === 'ERASER') { tctx.globalCompositeOperation = 'destination-out'; tctx.shadowBlur = 0; } 
+                    else { tctx.globalCompositeOperation = 'source-over'; tctx.strokeStyle = app.penColor; }
+                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); lx = c.x; ly = c.y;
+                }
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', e => {
+            if (isDraw) {
+                isDraw = false;
+                if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    const c = getC(e.changedTouches[0]);
+                    const w = c.x - window.dx, h = c.y - window.dy; tctx.clearRect(0,0, temp.width, temp.height); 
+                    if (Math.abs(w) > 5 && Math.abs(h) > 5) { 
+                        window.clipboard = mctx.getImageData(window.dx, window.dy, w, h); 
+                        if (app.activeTool === 'CUT') { mctx.clearRect(window.dx, window.dy, w, h); pushUndo('cut'); } 
+                        alert("Copied!");
+                    }
+                    app.activeTool = null;
+                    document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+                } 
+                else if (app.activeTool === 'PASTE' && window.clipboard) {
+                    const c = getC(e.changedTouches[0]);
+                    tctx.clearRect(0, 0, temp.width, temp.height);
+                    if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1].d; tctx.drawImage(p, 0, 0); }
+                    const pCanv = document.createElement('canvas'); pCanv.width = window.clipboard.width; pCanv.height = window.clipboard.height;
+                    pCanv.getContext('2d').putImageData(window.clipboard, 0, 0);
+                    tctx.drawImage(pCanv, c.x, c.y); pushUndo('paste');
+                }
+                    else if (app.activeTool === 'SMOOTH') {
+    tctx.save();
+    tctx.beginPath(); 
+    tctx.arc(c.x, c.y, (app.penSize / app.scale), 0, Math.PI * 2); 
+    tctx.clip();
+    tctx.filter = `blur(${Math.max(1, 4 / app.scale)}px)`;
+    tctx.drawImage(window.smoothBuf, 0, 0);
+    tctx.restore();
+                    }
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo('stroke'); }
+            }
+            isPan = false;
+        });
+
+        // --- FILE & UNDO ---
+        function triggerSave() { const l = document.createElement('a'); l.download = 'Studio_Export.png'; mctx.drawImage(temp, 0, 0); l.href = main.toDataURL(); l.click(); }
+        function triggerQSave() {
+            mctx.drawImage(temp, 0, 0); tctx.clearRect(0, 0, temp.width, temp.height); pushUndo('qsave');
+            if(!app.vaults) { app.vaults = [localStorage.getItem('v0'), localStorage.getItem('v1')]; app.vaultIdx = 0; }
+            app.vaults[app.vaultIdx] = main.toDataURL('image/jpeg', 0.8); 
+            localStorage.setItem('v'+app.vaultIdx, app.vaults[app.vaultIdx]);
+            app.vaultIdx = (app.vaultIdx + 1) % 2;
+            const btn = $('dock-qsave'); btn.style.borderColor = '#2e5bff'; btn.style.color = '#2e5bff';
+            setTimeout(() => { btn.style.borderColor = ''; btn.style.color = ''; }, 500);
+        }
+
+        function vaultAct(i) {
+            if(!app.vaults) app.vaults = [localStorage.getItem('v0'), localStorage.getItem('v1')];
+            const d = app.vaults[i]; if(!d) return alert("Vault is empty!");
+            const img = new Image(); 
+            img.onload = () => { mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height); pushUndo('load'); $('ladder-menu').style.display = 'none'; }; 
+            img.src = d;
+        }
+
+        function loadFile(type) {
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+            inp.onchange = e => {
+                const file = e.target.files[0]; if(!file) return;
+                const reader = new FileReader();
+                reader.onload = ev => {
+                    const img = new Image();
+                    img.onload = () => {
+                        if(type === 'load') {
+                            main.width = temp.width = img.width; main.height = temp.height = img.height;
+                            main.style.width = temp.style.width = img.width+'px'; main.style.height = temp.style.height = img.height+'px';
+                            app.scale = Math.min(window.innerWidth/img.width, window.innerHeight/img.height) * 0.9;
+                            app.panX = (window.innerWidth - img.width * app.scale) / 2; app.panY = (window.innerHeight - img.height * app.scale) / 2;
+                            viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                            mctx.clearRect(0, 0, main.width, main.height); mctx.drawImage(img, 0, 0); tctx.clearRect(0, 0, temp.width, temp.height);
+                        } else {
+                            const rect = temp.getBoundingClientRect();
+                            const cx = (window.innerWidth/2 - rect.left) / app.scale, cy = (window.innerHeight/2 - rect.top) / app.scale;
+                            const r = Math.min((window.innerWidth/app.scale)/img.width, (window.innerHeight/app.scale)/img.height);
+                            tctx.drawImage(img, cx - (img.width*r)/2, cy - (img.height*r)/2, img.width*r, img.height*r);
+                        }
+                        pushUndo(type); toggleLadder('menu'); 
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+            inp.click();
+        }
+
+        function pushUndo(type) { if(app.undo.length >= 5) app.undo.shift(); app.undo.push({ type, d: temp.toDataURL() }); }
+        function performUndo() {
+            if(app.undo.length <= 1) return; app.undo.pop(); 
+            const p = app.undo[app.undo.length-1]; const tImg = new Image(); 
+            tImg.onload = () => { tctx.clearRect(0, 0, temp.width, temp.height); tctx.drawImage(tImg, 0, 0); }; tImg.src = p.d;
+        }
+
+        // --- AI ---
+        function getApiKey() {
+            let key = localStorage.getItem('saved_api_key');
+            if (!key) { key = prompt("Google Gemini API Key:"); if (key) localStorage.setItem('saved_api_key', key); }
+            return key;
+        }
+
+        async function triggerAI() {
+            const apiKey = getApiKey(); if (!apiKey) return;
+            const userPrompt = prompt("Ask the AI about your drawing:", "What does this look like?"); if (!userPrompt) return;
+            $('dock-tools').innerText = 'THINK...';
+            try {
+                const snap = document.createElement('canvas'); snap.width = temp.width; snap.height = temp.height;
+                const sctx = snap.getContext('2d'); sctx.fillStyle = '#ffffff'; sctx.fillRect(0, 0, snap.width, snap.height);
+                sctx.drawImage(main, 0, 0); sctx.drawImage(temp, 0, 0);
+                const base64Image = snap.toDataURL('image/jpeg', 0.8).split(',')[1];
+                const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ contents: [{ parts: [{ text: userPrompt }, { inline_data: { mime_type: "image/jpeg", data: base64Image } }] }] })
+                });
+                const data = await res.json();
+                if (data.error) { alert("AI Error: " + data.error.message); if(data.error.code === 400 || data.error.code === 403) localStorage.removeItem('saved_api_key'); } 
+                else alert("GEMINI:\n\n" + data.candidates[0].content.parts[0].text);
+            } catch (e) { alert("Network Error."); }
+            $('dock-tools').innerText = 'TOOLS';
+        }
+
+        // --- PAINT BUCKET (FLOOD FILL) ---
+        function floodFill(x, y, targetColorStr) {
+            const w = temp.width, h = temp.height; x = Math.floor(x); y = Math.floor(y);
+            if (x < 0 || x >= w || y < 0 || y >= h) return;
+            const hc = document.createElement('canvas'); hc.width = 1; hc.height = 1;
+            const hctx = hc.getContext('2d'); hctx.fillStyle = targetColorStr; hctx.fillRect(0, 0, 1, 1);
+            const fRgba = hctx.getImageData(0, 0, 1, 1).data;
+            const comp = document.createElement('canvas'); comp.width = w; comp.height = h;
+            const cctx = comp.getContext('2d'); cctx.drawImage(main, 0, 0); cctx.drawImage(temp, 0, 0);
+            const cData = cctx.getImageData(0, 0, w, h).data;
+            const tImg = tctx.getImageData(0, 0, w, h); const tData = tImg.data;
+            const startPos = (y * w + x) * 4;
+            const sR = cData[startPos], sG = cData[startPos+1], sB = cData[startPos+2], sA = cData[startPos+3];
+            if (fRgba[0] === sR && fRgba[1] === sG && fRgba[2] === sB && fRgba[3] === sA) return;
+            const match = p => cData[p] === sR && cData[p+1] === sG && cData[p+2] === sB && cData[p+3] === sA;
+            const set = p => { 
+                tData[p] = fRgba[0]; tData[p+1] = fRgba[1]; tData[p+2] = fRgba[2]; tData[p+3] = fRgba[3]; 
+                cData[p] = fRgba[0]; cData[p+1] = fRgba[1]; cData[p+2] = fRgba[2]; cData[p+3] = fRgba[3];
+            };
+            const stack = [[x, y]];
+            while (stack.length > 0) {
+                let [cx, cy] = stack.pop(); let p = (cy * w + cx) * 4;
+                while (cy >= 0 && match(p)) { cy--; p -= w * 4; }
+                cy++; p += w * 4; let reachL = false, reachR = false;
+                while (cy < h && match(p)) {
+                    set(p);
+                    if (cx > 0) { if (match(p - 4)) { if (!reachL) { stack.push([cx - 1, cy]); reachL = true; } } else if (reachL) reachL = false; }
+                    if (cx < w - 1) { if (match(p + 4)) { if (!reachR) { stack.push([cx + 1, cy]); reachR = true; } } else if (reachR) reachR = false; }
+                    cy++; p += w * 4;
+                }
+            }
+            tctx.putImageData(tImg, 0, 0);
+        }
+
+        init();
+    </script>
+</body>
+</html>
                 
