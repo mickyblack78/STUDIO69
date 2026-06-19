@@ -2,7 +2,7 @@ const CACHE_NAME = 'STUDIO69';
 const ASSETS = [
   './',
   './index.html',
-  './SMARTART.png'
+  './black.png'
 ];
 
 // Install Event - Stores the app layout on your phone permanently
