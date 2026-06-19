@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>STUDIO 1978</title>
+    <style>
+        :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.95); --border: #333; --neon: #00ffff; --active-bg: rgba(0, 255, 255, 0.1); }
+        * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; font-family: monospace; }
+        body { background: var(--bg); height: 100vh; width: 100vw; overflow: hidden; color: #666; }
+        
+        #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
+        canvas { position: absolute; top: 0; left: 0; display: block; }
+        #temp-canvas { z-index: 20; }
+        
+        /* 4-BUTTON DOCK */
+        .dock {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 96%; max-width: 500px;
+            display: flex; justify-content: space-between; background: var(--panel); padding: 10px;
+            border-radius: 40px; border: 1px solid var(--border); z-index: 9999;
+        }
+        .dock-btn {
+            flex: 1; height: 50px; margin: 0 4px; border-radius: 25px; border: 1px solid var(--border);
+            background: #111; display: flex; align-items: center; justify-content: center;
+            color: #888; font-size: 11px; font-weight: 900; transition: 0.2s; cursor: pointer;
+        }
+        .active-btn { border-color: var(--neon) !important; color: var(--neon) !important; background: var(--active-bg); box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+        
+        /* OVERLAYS */
+        .overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 9000; display: none;
+            align-items: center; justify-content: center; flex-direction: column;
+        }
+        .menu-box {
+            background: var(--panel); border: 1px solid var(--border); padding: 20px;
+            border-radius: 20px; width: 90%; max-width: 400px; display: flex; flex-direction: column; gap: 10px;
+        }
+        .menu-row { display: flex; gap: 10px; width: 100%; }
+        .menu-item {
+            flex: 1; height: 50px; background: #111; border: 1px solid var(--border); border-radius: 12px;
+            display: flex; align-items: center; justify-content: center; color: #aaa; cursor: pointer; font-weight: bold;
+        }
+        .grid-3x4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+        
+        input[type="range"] { 
+            width: 100%; margin: 10px 0; height: 20px; border-radius: 10px; 
+            -webkit-appearance: none; outline: none; background: #222;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%;
+            background: #fff; border: 2px solid #000; cursor: pointer;
+        }
+        
+        .hidden-file { display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="viewport">
+        <canvas id="main-canvas"></canvas>
+        <canvas id="temp-canvas"></canvas>
+    </div>
+
+    <!-- DOCK -->
+    <div class="dock">
+        <div class="dock-btn" id="btn-menu" onclick="toggleOverlay('menu')">MENU</div>
+        <div class="dock-btn" id="btn-tools" onclick="toggleOverlay('tools')">TOOLS</div>
+        <div class="dock-btn" id="btn-color" onclick="toggleOverlay('color')">COLOR</div>
+        <div class="dock-btn" onclick="triggerQSave()">QSAVE</div>
+    </div>
+
+    <!-- MENU OVERLAY -->
+    <div class="overlay" id="overlay-menu">
+        <div class="menu-box">
+            <div class="menu-row">
+                <div class="menu-item" onclick="document.getElementById('load-file').click()">LOAD PIC</div>
+                <div class="menu-item" onclick="document.getElementById('import-file').click()">IMPORT</div>
+            </div>
+            <div class="menu-item" onclick="triggerSave()">EXPORT SAVE</div>
+            <div class="menu-item" onclick="toggleOverlay('vault')">VAULTS</div>
+        </div>
+    </div>
+
+    <!-- TOOLS OVERLAY -->
+    <div class="overlay" id="overlay-tools">
+        <div class="menu-box">
+            <div class="grid-3x4">
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'PAINTBRUSH')">BRUSH</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'ERASER')">ERASER</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'PICKER')">PICKER</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'FILL')">FILL</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'CUT')">CUT</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'COPY')">COPY</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'PASTE')">PASTE</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'SMOOTH')">SMOOTH</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'TEXT')">TEXT</div>
+                <div class="menu-item tool-btn" onclick="performUndo()">UNDO</div>
+                <div class="menu-item tool-btn" onclick="selectTool(this, 'AI')" style="color:#f0f;">AI</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- COLOR OVERLAY -->
+    <div class="overlay" id="overlay-color">
+        <div class="menu-box" style="align-items: center;">
+            <canvas id="brush-preview" width="100" height="100" style="border-radius: 50%; border: 2px solid #fff; margin-bottom: 10px;"></canvas>
+            
+            <div style="width: 100%; text-align: left; color: #888; font-size: 10px; margin-top:10px;">MASTER RAINBOW</div>
+            <input type="range" id="slider-hue" min="0" max="360" value="180" style="background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);">
+            
+            <div style="width: 100%; text-align: left; color: #888; font-size: 10px;">SHADES (DARK TO LIGHT)</div>
+            <input type="range" id="slider-light" min="0" max="100" value="50">
+            
+            <div style="width: 100%; text-align: left; color: #888; font-size: 10px;">BRUSH SIZE</div>
+            <input type="range" id="slider-size" min="1" max="100" value="20">
+        </div>
+    </div>
+
+    <!-- VAULT OVERLAY -->
+    <div class="overlay" id="overlay-vault">
+        <div class="menu-box">
+            <div class="menu-item" onclick="loadVault(0)">LOAD QSAVE 1</div>
+            <div class="menu-item" onclick="loadVault(1)">LOAD QSAVE 2</div>
+            <div class="menu-item" style="border-color: #444;" onclick="toggleOverlay(null)">CLOSE</div>
+        </div>
+    </div>
+
+    <!-- HIDDEN INPUTS -->
+    <input type="file" id="load-file" class="hidden-file" accept="image/*">
+    <input type="file" id="import-file" class="hidden-file" accept="image/*">
+
+    <script>
+        const app = {
+            activeTool: null, penColor: '#00ffff', penSize: 20,
+            scale: 1, panX: 0, panY: 0, undo: [], vaults: []
+        };
+
+        const viewport = document.getElementById('viewport');
+        const main = document.getElementById('main-canvas'), temp = document.getElementById('temp-canvas');
+        const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
+        let currentOpenMenu = null;
+
+        function init() {
+            main.width = temp.width = window.innerWidth; main.height = temp.height = window.innerHeight;
+            main.style.width = temp.style.width = window.innerWidth + 'px'; main.style.height = temp.style.height = window.innerHeight + 'px';
+            mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round';
+            updateColor();
+            app.vaults[0] = localStorage.getItem('v0'); app.vaults[1] = localStorage.getItem('v1');
+            pushUndo();
+        }
+
+        // Toggles overlay on and off. If tapping the same dock button, it closes it.
+        function toggleOverlay(id) {
+            document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
+            document.querySelectorAll('.dock-btn').forEach(btn => btn.classList.remove('active-btn'));
+            
+            if (id === currentOpenMenu) {
+                currentOpenMenu = null; // Close it
+            } else if (id) {
+                document.getElementById('overlay-' + id).style.display = 'flex';
+                document.getElementById('btn-' + id).classList.add('active-btn');
+                currentOpenMenu = id;
+            } else {
+                currentOpenMenu = null;
+            }
+
+            // Keep Tools button lit if a tool is physically active in the background
+            if (app.activeTool && currentOpenMenu !== 'tools') {
+                document.getElementById('btn-tools').classList.add('active-btn');
+            }
+        }
+
+        function selectTool(btn, tool) {
+            if (app.activeTool === tool) {
+                app.activeTool = null; btn.classList.remove('active-btn');
+            } else {
+                document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
+                btn.classList.add('active-btn'); app.activeTool = tool;
+                if (tool === 'TEXT') { window.currentText = prompt("Enter text:"); if(!window.currentText) { app.activeTool = null; btn.classList.remove('active-btn'); } }
+            }
+            // Notice: We removed toggleOverlay(null) here so the menu STAYS OPEN!
+        }
+
+        // --- COLOR LOGIC (HSL) ---
+        const hueSlider = document.getElementById('slider-hue');
+        const lightSlider = document.getElementById('slider-light');
+        const sizeSlider = document.getElementById('slider-size');
+
+        hueSlider.addEventListener('input', updateColor);
+        lightSlider.addEventListener('input', updateColor);
+        sizeSlider.addEventListener('input', updateColor);
+
+        function updateColor() {
+            const h = hueSlider.value;
+            const l = lightSlider.value;
+            app.penSize = parseInt(sizeSlider.value);
+            
+            app.penColor = `hsl(${h}, 100%, ${l}%)`;
+            
+            // Dynamic background for Shade slider (adapts to current Rainbow hue)
+            lightSlider.style.background = `linear-gradient(to right, black, hsl(${h}, 100%, 50%), white)`;
+            
+            document.getElementById('btn-color').style.color = app.penColor;
+            document.getElementById('btn-color').style.borderColor = app.penColor;
+            document.documentElement.style.setProperty('--neon', app.penColor);
+            
+            const pCtx = document.getElementById('brush-preview').getContext('2d');
+            pCtx.clearRect(0,0,100,100); pCtx.beginPath(); 
+            pCtx.arc(50, 50, app.penSize / 2, 0, Math.PI*2); // Perfect 1:1 fit in 100px canvas
+            pCtx.fillStyle = app.penColor; pCtx.fill();
+        }
+
+        function rgbToHsl(r, g, b) {
+            r /= 255, g /= 255, b /= 255;
+            const max = Math.max(r, g, b), min = Math.min(r, g, b);
+            let h, s, l = (max + min) / 2;
+            if (max === min) { h = s = 0; } 
+            else {
+                const d = max - min; s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+                switch (max) { case r: h = (g - b) / d + (g < b ? 6 : 0); break; case g: h = (b - r) / d + 2; break; case b: h = (r - g) / d + 4; break; }
+                h /= 6;
+            }
+            return { h: Math.round(h * 360), l: Math.round(l * 100) };
+        }
+      // --- TOUCH LOGIC (ONE & TWO FINGER RULES) ---
+        let isDraw = false, isPan = false, dist = 0, px = 0, py = 0, lx = 0, ly = 0;
+
+        const getC = e => { 
+            const rect = temp.getBoundingClientRect(); 
+            return { x: (e.clientX - rect.left) / app.scale, y: (e.clientY - rect.top) / app.scale }; 
+        };
+
+        // Picker logic extracted so it can run on touch AND move continuously
+        function executePicker(c) {
+            const px = Math.floor(c.x), py = Math.floor(c.y);
+            if (px >= 0 && px < main.width && py >= 0 && py < main.height) {
+                const sc = document.createElement('canvas'); sc.width = 1; sc.height = 1; const sctx = sc.getContext('2d');
+                sctx.drawImage(main, -px, -py); sctx.drawImage(temp, -px, -py);
+                const pD = sctx.getImageData(0,0,1,1).data;
+                if (pD[3] > 0) {
+                    const hsl = rgbToHsl(pD[0], pD[1], pD[2]);
+                    hueSlider.value = hsl.h;
+                    lightSlider.value = hsl.l;
+                    updateColor(); // Live update sliders and UI!
+                }
+            }
+        }
+
+        viewport.addEventListener('touchstart', e => {
+            if (e.touches.length === 2) {
+                isDraw = false; isPan = true;
+                dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                return;
+            }
+            if (e.touches.length === 1) {
+                const t = e.touches[0];
+                if (!app.activeTool) {
+                    isDraw = false; isPan = true; lx = t.clientX - app.panX; ly = t.clientY - app.panY;
+                } else {
+                    isPan = false; isDraw = true; const c = getC(t); lx = c.x; ly = c.y;
+                    
+                    if (app.activeTool === 'PICKER') { executePicker(c); } 
+                    else if (app.activeTool === 'FILL') { tctx.fillStyle = app.penColor; tctx.fillRect(0,0, temp.width, temp.height); isDraw = false; pushUndo(); }
+                    else if (app.activeTool === 'TEXT' && window.currentText) {
+                        tctx.font = `${app.penSize*2}px monospace`; tctx.fillStyle = app.penColor;
+                        tctx.fillText(window.currentText, c.x, c.y); isDraw = false; pushUndo();
+                    }
+                    else if (app.activeTool === 'PASTE' && window.clipboard) {
+                        const pCanv = document.createElement('canvas'); pCanv.width = window.clipboard.width; pCanv.height = window.clipboard.height;
+                        pCanv.getContext('2d').putImageData(window.clipboard, 0, 0);
+                        tctx.drawImage(pCanv, c.x, c.y); isDraw = false; pushUndo();
+                    }
+                    else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.rectStartX = c.x; window.rectStartY = c.y; }
+                    else if (app.activeTool === 'SMOOTH') {
+                        if(!window.smoothBuf) { window.smoothBuf = document.createElement('canvas'); }
+                        window.smoothBuf.width = main.width; window.smoothBuf.height = main.height;
+                        const bctx = window.smoothBuf.getContext('2d'); bctx.drawImage(main, 0, 0); bctx.drawImage(temp, 0, 0);
+                    }
+                }
+            }
+        }, {passive: false});
+
+        viewport.addEventListener('touchmove', e => {
+            e.preventDefault();
+            if (e.touches.length === 2 && isPan) {
+                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                const ns = Math.min(Math.max(0.2, app.scale * (nd / dist)), 50); 
+                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
+                app.scale = ns; dist = nd; px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+            } 
+            else if (e.touches.length === 1) {
+                if (isPan && !app.activeTool) {
+                    app.panX = e.touches[0].clientX - lx; app.panY = e.touches[0].clientY - ly;
+                    viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                } 
+                else if (isDraw && app.activeTool) {
+                    const c = getC(e.touches[0]);
+                    
+                    if (app.activeTool === 'PICKER') { executePicker(c); } // Continuously rub to pick colors!
+                    else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                        tctx.clearRect(0,0, temp.width, temp.height);
+                        if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
+                        tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale;
+                        tctx.strokeRect(window.rectStartX, window.rectStartY, c.x - window.rectStartX, c.y - window.rectStartY); tctx.setLineDash([]);
+                    }
+                    else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
+                        tctx.lineWidth = app.penSize; 
+                        if (app.activeTool === 'ERASER') { tctx.globalCompositeOperation = 'destination-out'; } 
+                        else { tctx.globalCompositeOperation = 'source-over'; tctx.strokeStyle = app.penColor; }
+                        tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); lx = c.x; ly = c.y;
+                    }
+                }
+            }
+        }, {passive: false});
+
+        window.addEventListener('touchend', e => {
+            if (isDraw && app.activeTool) {
+                if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    const c = getC(e.changedTouches[0]); const w = c.x - window.rectStartX, h = c.y - window.rectStartY;
+                    tctx.clearRect(0,0, temp.width, temp.height);
+                    if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
+                    if (Math.abs(w) > 5 && Math.abs(h) > 5) {
+                        window.clipboard = mctx.getImageData(window.rectStartX, window.rectStartY, w, h);
+                        if (app.activeTool === 'CUT') { mctx.clearRect(window.rectStartX, window.rectStartY, w, h); pushUndo(); }
+                    }
+                } 
+                else if (app.activeTool === 'SMOOTH') {
+                    const c = getC(e.changedTouches[0]);
+                    tctx.save(); tctx.beginPath(); tctx.arc(c.x, c.y, app.penSize, 0, Math.PI * 2); tctx.clip();
+                    tctx.filter = `blur(4px)`; tctx.drawImage(window.smoothBuf, 0, 0); tctx.restore(); pushUndo();
+                }
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
+            }
+            isDraw = false; isPan = false;
+        });
+
+        // --- FILE HANDLING & MEMORY ---
+        function handleImageLoad(e, type) {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = ev => {
+                const img = new Image();
+                img.onload = () => {
+                    if (type === 'load') {
+                        main.width = temp.width = img.width; main.height = temp.height = img.height;
+                        main.style.width = temp.style.width = img.width+'px'; main.style.height = temp.style.height = img.height+'px';
+                        app.scale = Math.min(window.innerWidth/img.width, window.innerHeight/img.height) * 0.9;
+                        app.panX = (window.innerWidth - img.width * app.scale) / 2; app.panY = (window.innerHeight - img.height * app.scale) / 2;
+                        viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+                        mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height);
+                        app.undo = []; pushUndo(); toggleOverlay(null);
+                    } else if (type === 'import') {
+                        const rect = temp.getBoundingClientRect();
+                        const cx = (window.innerWidth/2 - rect.left) / app.scale, cy = (window.innerHeight/2 - rect.top) / app.scale;
+                        
+                        // Shrink to fit current view perfectly!
+                        const viewW = window.innerWidth / app.scale; const viewH = window.innerHeight / app.scale;
+                        const ratio = Math.min(viewW / img.width, viewH / img.height) * 0.8;
+                        const drawW = img.width * ratio; const drawH = img.height * ratio;
+                        
+                        tctx.drawImage(img, cx - drawW/2, cy - drawH/2, drawW, drawH); pushUndo(); toggleOverlay(null);
+                    }
+                };
+                img.src = ev.target.result;
+            };
+            reader.readAsDataURL(file); e.target.value = '';
+        }
+
+        document.getElementById('load-file').addEventListener('change', e => handleImageLoad(e, 'load'));
+        document.getElementById('import-file').addEventListener('change', e => handleImageLoad(e, 'import'));
+
+        function pushUndo() { if(app.undo.length >= 3) app.undo.shift(); app.undo.push(temp.toDataURL()); }
+        function performUndo() {
+            if(app.undo.length <= 1) return; app.undo.pop();
+            const img = new Image(); img.onload = () => { tctx.clearRect(0,0,temp.width,temp.height); tctx.drawImage(img,0,0); };
+            img.src = app.undo[app.undo.length-1];
+        }
+
+        function triggerSave() { const l = document.createElement('a'); l.download = 'export.png'; mctx.drawImage(temp,0,0); l.href = main.toDataURL(); l.click(); toggleOverlay(null); }
+        function triggerQSave() {
+            mctx.drawImage(temp,0,0); tctx.clearRect(0,0,temp.width,temp.height); pushUndo();
+            app.vaultIdx = app.vaultIdx === 0 ? 1 : 0;
+            app.vaults[app.vaultIdx] = main.toDataURL('image/jpeg', 0.8);
+            localStorage.setItem('v' + app.vaultIdx, app.vaults[app.vaultIdx]);
+            document.getElementById('btn-color').innerText = 'SAVED!'; setTimeout(() => document.getElementById('btn-color').innerText = 'COLOR', 1000);
+        }
+        function loadVault(i) {
+            if(!app.vaults[i]) return alert("Vault empty!");
+            const img = new Image(); img.onload = () => {
+                mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height);
+                app.undo = []; pushUndo(); toggleOverlay(null);
+            }; img.src = app.vaults[i];
+        }
+
+        init();
+    </script>
+</body>
+</html>
