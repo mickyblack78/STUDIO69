@@ -239,7 +239,10 @@
         function updateColor() {
             app.penSize = parseInt(sizeSlider.value); app.penColor = `hsl(${hueSlider.value}, 100%, ${lightSlider.value}%)`;
             lightSlider.style.background = `linear-gradient(to right, black, hsl(${hueSlider.value}, 100%, 50%), white)`;
-            document.getElementById('btn-color').style.color = app.penColor; document.getElementById('btn-color').style.borderColor = app.penColor;
+            
+            // Turns the entire button into a solid color block with black text!
+            document.getElementById('btn-color').style.background = app.penColor; 
+            document.getElementById('btn-color').style.color = '#000';
             
             const pCtx = document.getElementById('brush-preview').getContext('2d');
             pCtx.clearRect(0,0,100,100); pCtx.beginPath(); pCtx.arc(50, 50, app.penSize / 2, 0, Math.PI*2); pCtx.fillStyle = app.penColor; pCtx.fill();
