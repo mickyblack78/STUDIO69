@@ -329,9 +329,24 @@
                 if (pD[3] === 0) pD = mctx.getImageData(x, y, 1, 1).data;
                 
                 if (pD[3] > 0) { 
+                    const exactColor = `rgb(${pD[0]}, ${pD[1]}, ${pD[2]})`;
                     const hsl = rgbToHsl(pD[0], pD[1], pD[2]); 
-                    hueSlider.value = hsl.h; lightSlider.value = hsl.l; 
-                    updateColor(); 
+                    
+                    // Move the sliders to visually match
+                    document.getElementById('slider-hue').value = hsl.h; 
+                    document.getElementById('slider-light').value = hsl.l; 
+                    document.getElementById('slider-light').style.background = `linear-gradient(to right, black, hsl(${hsl.h}, 100%, 50%), white)`;
+                    
+                    // Lock the exact color into the brush (Bypasses the 100% rainbow saturation!)
+                    app.penColor = exactColor;
+                    
+                    // Live update the button and preview circle
+                    document.getElementById('btn-color').style.background = exactColor; 
+                    document.getElementById('btn-color').style.color = '#000';
+                    document.getElementById('btn-color').style.borderColor = exactColor;
+                    
+                    const pCtx = document.getElementById('brush-preview').getContext('2d');
+                    pCtx.clearRect(0,0,100,100); pCtx.beginPath(); pCtx.arc(50, 50, app.penSize / 2, 0, Math.PI*2); pCtx.fillStyle = exactColor; pCtx.fill();
                 }
             }
         }
