@@ -197,12 +197,17 @@
             app.activeTool = null; document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn')); tctx.putImageData(window.dragBackup, 0, 0);
         }
         function drawTextPreview() {
-            if(app.activeTool !== 'TEXT_PLACE') return;
-            textObj.rot = parseInt(document.getElementById('text-rotate').value);
-            tctx.putImageData(window.dragBackup, 0, 0);
-            tctx.save(); tctx.translate(textObj.x, textObj.y); tctx.rotate(textObj.rot * Math.PI / 180);
-            tctx.font = `${app.penSize * 2 * textObj.scale}px ${textObj.font}`; tctx.fillStyle = app.penColor; tctx.fillText(textObj.txt, 0, 0); tctx.restore();
-        }
+    if(app.activeTool !== 'TEXT_PLACE') return;
+    tctx.putImageData(window.dragBackup, 0, 0);
+    tctx.save(); tctx.translate(textObj.x, textObj.y); tctx.rotate(textObj.rot * Math.PI / 180);
+    if (textObj.img) {
+        tctx.drawImage(textObj.img, -textObj.img.width/2, -textObj.img.height/2);
+    } else {
+        tctx.font = `${app.penSize * 2 * textObj.scale}px ${textObj.font}`; 
+        tctx.fillStyle = app.penColor; tctx.fillText(textObj.txt, 0, 0);
+    }
+    tctx.restore();
+}
         function confirmTextSticker() {
             document.getElementById('ui-text-confirm').style.display = 'none'; pushUndo(); app.activeTool = null;
             document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
@@ -275,13 +280,15 @@
                         mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height);
                         app.undo = []; pushUndo(); toggleOverlay(null);
                     } else if (type === 'import') {
-                        const viewW = window.innerWidth / app.scale, viewH = window.innerHeight / app.scale;
-                        const ratio = Math.min(viewW / img.width, viewH / img.height) * 0.8;
-                        const drawW = img.width * ratio, drawH = img.height * ratio;
-                        const rect = temp.getBoundingClientRect();
-                        const cx = (window.innerWidth/2 - rect.left) / app.scale, cy = (window.innerHeight/2 - rect.top) / app.scale;
-                        tctx.drawImage(img, cx - drawW/2, cy - drawH/2, drawW, drawH); pushUndo(); toggleOverlay(null);
-                    }
+    textObj.img = img; 
+    app.activeTool = 'TEXT_PLACE';
+    window.dragBackup = tctx.getImageData(0,0,temp.width,temp.height);
+    document.getElementById('ui-text-confirm').style.display = 'block';
+    const rect = temp.getBoundingClientRect();
+    textObj.x = (window.innerWidth/2 - rect.left) / app.scale;
+    textObj.y = (window.innerHeight/2 - rect.top) / app.scale;
+    drawTextPreview();
+}
                 }; img.src = ev.target.result;
             }; reader.readAsDataURL(file); e.target.value = '';
         }
