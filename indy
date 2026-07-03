@@ -154,6 +154,7 @@
         const viewport = document.getElementById('viewport'), main = document.getElementById('main-canvas'), temp = document.getElementById('temp-canvas');
         const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
         let currentOpenMenu = null;
+        let textObj = { txt: '', font: '', rot: 0, x: 100, y: 100, scale: 1, img: null };
 
         // --- OVERLAY & TOOLS LOGIC ---
         function toggleOverlay(id) {
