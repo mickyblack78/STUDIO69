@@ -17,5 +17,15 @@
       "type": "image/png"
     }
   ]
-}
+},
+"file_handlers": [
+  {
+    "action": "./open-file",
+    "accept": {
+      "image/jpeg": [".jpg", ".jpeg"],
+      "image/png": [".png"],
+      "image/webp": [".webp"]
+    }
+  }
+]
 
