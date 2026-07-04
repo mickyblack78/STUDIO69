@@ -452,6 +452,21 @@
                     if (Math.abs(w) > 5 && Math.abs(h) > 5) {
                         window.clipboard = mctx.getImageData(window.rX, window.rY, w, h);
                         if (app.activeTool === 'CUT') { mctx.clearRect(window.rX, window.rY, w, h); pushUndo(); }
+                        if ('launchQueue' in window) {
+  window.launchQueue.setConsumer(async (launchParams) => {
+    // Check if a file was actually passed to the app
+    if (launchParams.files && launchParams.files.length > 0) {
+      const fileHandle = launchParams.files[0];
+      const file = await fileHandle.getFile();
+      
+      // Convert the image file into a URL your canvas can read
+      const imageURL = URL.createObjectURL(file);
+      
+      // Call your custom function to load the image onto your drawing board
+      loadImageToCanvas(imageURL); 
+    }
+  });
+                        }
                     }
                 } else if (app.activeTool === 'SMOOTH' || app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
             }
