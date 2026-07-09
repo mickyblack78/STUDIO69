@@ -328,4 +328,247 @@
         if(!app.vaults[i]) return alert("Vault empty!");
         const img = new Image(); img.onload = () => { 
             applyFitMath(img.width, img.height); 
-            mctx.clearRect(
+            mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); 
+            tctx.clearRect(0,0,temp.width,temp.height); app.undo = []; pushUndo(); toggleOverlay(null); 
+        }; img.src = app.vaults[i];
+            }
+        // --- IMAGE & FILE HANDLERS ---
+    function handleImageLoad(e, type) {
+        const file = e.target.files[0]; if(!file) return; 
+        const reader = new FileReader();
+        reader.onload = ev => {
+            const img = new Image(); img.onload = () => {
+                if (type === 'load') {
+                    applyFitMath(img.width, img.height);
+                    mctx.clearRect(0,0,main.width,main.height); 
+                    mctx.drawImage(img,0,0); 
+                    tctx.clearRect(0,0,temp.width,temp.height);
+                    app.undo = []; pushUndo(); toggleOverlay(null);
+                } else if (type === 'import') {
+                    textObj.img = img; textObj.txt = ''; 
+                    textObj.scale = 0.5; // Start at a reasonable size
+                    app.activeTool = 'TEXT_PLACE';
+                    window.dragBackup = tctx.getImageData(0,0,temp.width,temp.height);
+                    
+                    // UI Transitions
+                    toggleOverlay(null);
+                    document.getElementById('ui-transform-bar').style.display = 'flex';
+                    
+                    // Center the import
+                    const rect = temp.getBoundingClientRect();
+                    textObj.x = (window.innerWidth/2 - rect.left) / app.scale;
+                    textObj.y = (window.innerHeight/2 - rect.top) / app.scale;
+                    drawTextPreview();
+                }
+            }; img.src = ev.target.result;
+        }; reader.readAsDataURL(file); e.target.value = '';
+    }
+
+    document.getElementById('load-file').addEventListener('change', e => handleImageLoad(e, 'load'));
+    document.getElementById('import-file').addEventListener('change', e => handleImageLoad(e, 'import'));
+
+    // --- SPECIALTY TOOLS ---
+    function performReflector() {
+        pushUndo(); 
+        const holder = document.createElement('canvas'); 
+        holder.width = main.width; holder.height = main.height;
+        const hctx = holder.getContext('2d'); 
+        hctx.translate(main.width, 0); hctx.scale(-1, 1);
+        hctx.drawImage(main, 0, 0); hctx.drawImage(temp, 0, 0); 
+        mctx.clearRect(0,0,main.width,main.height);
+        tctx.clearRect(0,0,main.width,main.height); 
+        mctx.drawImage(holder, 0, 0); 
+        toggleOverlay(null);
+    }
+
+    function executePicker(c) {
+        const x = Math.floor(c.x), y = Math.floor(c.y);
+        if (x >= 0 && x < main.width && y >= 0 && y < main.height) {
+            let pD = tctx.getImageData(x, y, 1, 1).data; 
+            if (pD[3] === 0) pD = mctx.getImageData(x, y, 1, 1).data;
+            if (pD[3] > 0) { 
+                const exactColor = `rgb(${pD[0]}, ${pD[1]}, ${pD[2]})`; 
+                const hsl = rgbToHsl(pD[0], pD[1], pD[2]); 
+                document.getElementById('slider-hue').value = hsl.h; 
+                document.getElementById('slider-light').value = hsl.l; 
+                app.penColor = exactColor; 
+                document.getElementById('btn-color').style.background = exactColor; 
+                updateColor(); // Syncs preview circle
+            }
+        }
+    }
+
+    function floodFill(startX, startY) {
+        const w = main.width, h = main.height; 
+        let x = Math.floor(startX), y = Math.floor(startY);
+        if (x < 0 || x >= w || y < 0 || y >= h) return; // Bounds safety check
+        
+        const hc = document.createElement('canvas'); hc.width=1; hc.height=1; 
+        const hcx = hc.getContext('2d'); hcx.fillStyle = app.penColor; hcx.fillRect(0,0,1,1);
+        const fillCol = new Uint32Array(hcx.getImageData(0,0,1,1).data.buffer)[0];
+        
+        const comp = document.createElement('canvas'); comp.width = w; comp.height = h; 
+        const cctx = comp.getContext('2d'); cctx.drawImage(main,0,0); cctx.drawImage(temp,0,0);
+        
+        const imgD = cctx.getImageData(0,0,w,h); const data32 = new Uint32Array(imgD.data.buffer);
+        const startCol = data32[y * w + x]; if (startCol === fillCol) return;
+        
+        const stack = [[x, y]];
+        while (stack.length > 0) {
+            let [cx, cy] = stack.pop(); let idx = cy * w + cx;
+            while (cy >= 0 && data32[idx] === startCol) { cy--; idx -= w; }
+            cy++; idx += w; let rL = false, rR = false;
+            while (cy < h && data32[idx] === startCol) {
+                data32[idx] = fillCol;
+                if (cx > 0) { if (data32[idx - 1] === startCol) { if (!rL) { stack.push([cx - 1, cy]); rL = true; } } else if (rL) rL = false; }
+                if (cx < w - 1) { if (data32[idx + 1] === startCol) { if (!rR) { stack.push([cx + 1, cy]); rR = true; } } else if (rR) rR = false; }
+                cy++; idx += w;
+            }
+        }
+        const outImg = tctx.getImageData(0,0,w,h); const out32 = new Uint32Array(outImg.data.buffer);
+        for(let i=0; i<data32.length; i++) { if(data32[i] === fillCol && out32[i] !== fillCol) out32[i] = fillCol; }
+        tctx.putImageData(outImg, 0, 0); pushUndo();
+    }
+
+    // --- INTERACTION ENGINE ---
+    let isDraw = false, isPan = false, dist = 0, px = 0, py = 0, lx = 0, ly = 0;
+    const getC = e => { 
+        const rect = temp.getBoundingClientRect(); 
+        return { x: (e.clientX - rect.left) / app.scale, y: (e.clientY - rect.top) / app.scale }; 
+    };
+
+    viewport.addEventListener('touchstart', e => {
+        if (e.touches.length === 2) {
+            isDraw = false; isPan = true; 
+            dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2; return;
+        }
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            if (!app.activeTool) { isDraw = false; isPan = true; lx = t.clientX - app.panX; ly = t.clientY - app.panY; } 
+            else {
+                isPan = false; isDraw = true; const c = getC(t); lx = c.x; ly = c.y;
+                if (app.activeTool === 'PICKER') { executePicker(c); } 
+                else if (app.activeTool === 'FILL') { floodFill(c.x, c.y); isDraw = false; }
+                else if (app.activeTool === 'TEXT_PLACE') { 
+                    isDraw = true; lx = c.x; ly = c.y; 
+                    // Capture backup in case they start dragging immediately
+                    window.dragBackup = tctx.getImageData(0,0,temp.width,temp.height);
+                }
+                else if (app.activeTool === 'PASTE' && window.clipboard) { 
+                    const pC = document.createElement('canvas'); 
+                    pC.width = window.clipboard.width; pC.height = window.clipboard.height; 
+                    pC.getContext('2d').putImageData(window.clipboard, 0, 0); 
+                    tctx.drawImage(pC, c.x, c.y); isDraw = false; pushUndo(); 
+                }
+                else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.rX = c.x; window.rY = c.y; }
+                else if (app.activeTool === 'SMOOTH') {
+                    if(!window.smoothBuf) window.smoothBuf = document.createElement('canvas'); 
+                    window.smoothBuf.width = main.width; window.smoothBuf.height = main.height;
+                    const bctx = window.smoothBuf.getContext('2d'); bctx.drawImage(main, 0, 0); bctx.drawImage(temp, 0, 0);
+                }
+            }
+        }
+    }, {passive: false});
+
+    viewport.addEventListener('touchmove', e => {
+        e.preventDefault();
+        if (e.touches.length === 2) {
+            if (app.activeTool === 'TEXT_PLACE') {
+                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                textObj.scale *= (nd / dist); dist = nd; 
+                // Sync manual slider
+                if(document.getElementById('text-scale-slider')) document.getElementById('text-scale-slider').value = textObj.scale;
+                drawTextPreview(); return;
+            }
+            if (isPan) {
+                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                const ns = Math.min(Math.max(0.2, app.scale * (nd / dist)), 50); 
+                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
+                app.scale = ns; dist = nd; px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
+            }
+        } else if (e.touches.length === 1) {
+            if (isPan && !app.activeTool) { 
+                app.panX = e.touches[0].clientX - lx; app.panY = e.touches[0].clientY - ly; 
+                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`; 
+            } 
+            else if (isDraw && app.activeTool) {
+                const c = getC(e.touches[0]);
+                if (app.activeTool === 'TEXT_PLACE') { 
+                    textObj.x += (c.x - lx); textObj.y += (c.y - ly); 
+                    lx = c.x; ly = c.y; drawTextPreview(); 
+                }
+                else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                    tctx.clearRect(0,0, temp.width, temp.height); 
+                    if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
+                    tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale; 
+                    tctx.strokeRect(window.rX, window.rY, c.x - window.rX, c.y - window.rY); tctx.setLineDash([]);
+                }
+                else if (app.activeTool === 'SMOOTH') {
+                    tctx.save(); tctx.beginPath(); tctx.arc(c.x, c.y, app.penSize/app.scale, 0, Math.PI*2); 
+                    tctx.clip(); tctx.filter = 'blur(4px)'; tctx.drawImage(window.smoothBuf, 0, 0); tctx.restore();
+                }
+                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
+                    tctx.lineWidth = app.penSize / app.scale; 
+                    tctx.globalCompositeOperation = (app.activeTool === 'ERASER') ? 'destination-out' : 'source-over';
+                    if(app.activeTool !== 'ERASER') tctx.strokeStyle = app.penColor;
+                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); 
+                    lx = c.x; ly = c.y;
+                }
+            }
+        }
+    }, {passive: false});
+
+    window.addEventListener('touchend', e => {
+        if (isDraw && app.activeTool) {
+            if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
+                const c = getC(e.changedTouches[0]); const w = c.x - window.rX, h = c.y - window.rY; 
+                tctx.clearRect(0,0, temp.width, temp.height);
+                if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
+                if (Math.abs(w) > 5 && Math.abs(h) > 5) {
+                    window.clipboard = mctx.getImageData(window.rX, window.rY, w, h);
+                    if (app.activeTool === 'CUT') { mctx.clearRect(window.rX, window.rY, w, h); pushUndo(); }
+                }
+            } else if (app.activeTool === 'SMOOTH' || app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
+        }
+        isDraw = false; isPan = false;
+    });
+
+    // --- STARTUP & PWA ENGINE ---
+    function init() {
+        main.width = temp.width = window.innerWidth; main.height = temp.height = window.innerHeight;
+        main.style.width = temp.style.width = window.innerWidth + 'px'; 
+        main.style.height = temp.style.height = window.innerHeight + 'px';
+        mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round'; 
+        updateColor();
+        app.vaults[0] = localStorage.getItem('v0'); app.vaults[1] = localStorage.getItem('v1');
+        if(app.vaults[0]) document.getElementById('vault-img-0').src = app.vaults[0];
+        if(app.vaults[1]) document.getElementById('vault-img-1').src = app.vaults[1];
+        
+        // Background Loader
+        const bg = new Image(); bg.src = 'car.png'; 
+        bg.onload = () => { mctx.drawImage(bg, 0, 0); pushUndo(); };
+        pushUndo();
+    }
+    init();
+
+    if ('launchQueue' in window) {
+        window.launchQueue.setConsumer(async (launchParams) => {
+            if (launchParams.files && launchParams.files.length > 0) {
+                const fileHandle = launchParams.files[0]; const file = await fileHandle.getFile();
+                const reader = new FileReader(); 
+                reader.onload = ev => {
+                    const img = new Image(); img.onload = () => { 
+                        applyFitMath(img.width, img.height); mctx.drawImage(img,0,0); pushUndo(); 
+                    }; img.src = ev.target.result;
+                }; reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('service-worker.js').catch(err => console.log('SW failed', err));
+    }
+</script>
+</html>
