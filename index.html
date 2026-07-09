@@ -9,9 +9,11 @@
         :root { --bg: #050505; --panel: rgba(15, 15, 15, 0.95); --border: #333; --neon: #00ffff; --active-bg: rgba(0, 255, 255, 0.1); }
         * { margin: 0; padding: 0; box-sizing: border-box; user-select: none; -webkit-user-select: none; touch-action: none; font-family: monospace; }
         body { background: var(--bg); height: 100vh; width: 100vw; overflow: hidden; color: #666; }
+        
         #viewport { position: absolute; top: 0; left: 0; width: 100%; height: 100%; transform-origin: 0 0; }
         canvas { position: absolute; top: 0; left: 0; display: block; }
         #temp-canvas { z-index: 20; }
+        
         .dock {
             position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); width: 96%; max-width: 500px;
             display: flex; justify-content: space-between; background: var(--panel); padding: 10px;
@@ -23,6 +25,7 @@
             color: #888; font-size: 11px; font-weight: 900; transition: 0.2s; cursor: pointer;
         }
         .active-btn { border-color: var(--neon) !important; color: var(--neon) !important; background: var(--active-bg); box-shadow: 0 0 15px rgba(0, 255, 255, 0.2); }
+        
         .overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,0,0,0.8); z-index: 9000; display: none;
@@ -38,23 +41,42 @@
             display: flex; align-items: center; justify-content: center; color: #aaa; cursor: pointer; font-weight: bold;
         }
         .grid-3x4 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; width: 100%; }
+        
         input[type="range"] { width: 100%; margin: 10px 0; height: 20px; border-radius: 10px; -webkit-appearance: none; outline: none; background: #222; }
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #000; cursor: pointer; }
         input[type="text"], select { width: 100%; height: 40px; background: #111; color: #fff; border: 1px solid #444; padding: 10px; margin-bottom: 15px; }
         .hidden-file { display: none; }
+
+        /* Hidden Transform Bar - Only pops up during placement */
+        #ui-transform-bar {
+            display: none; 
+            position: fixed; 
+            bottom: 100px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            z-index: 9999; 
+            gap: 10px; 
+            width: 90%; 
+            max-width: 450px;
+        }
     </style>
 </head>
 <body>
+
     <div id="viewport">
         <canvas id="main-canvas"></canvas>
         <canvas id="temp-canvas"></canvas>
     </div>
+
+    <!-- DOCK -->
     <div class="dock">
         <div class="dock-btn" id="btn-menu" onclick="toggleOverlay('menu')">MENU</div>
         <div class="dock-btn" id="btn-tools" onclick="toggleOverlay('tools')">TOOLS</div>
         <div class="dock-btn" id="btn-color" onclick="toggleOverlay('color')">COLOR</div>
         <div class="dock-btn" onclick="triggerQSave()">QSAVE</div>
     </div>
+
+    <!-- MENU OVERLAY -->
     <div class="overlay" id="overlay-menu">
         <div class="menu-box">
             <div class="menu-row">
@@ -65,6 +87,8 @@
             <div class="menu-item" onclick="toggleOverlay('vault')">VAULTS</div>
         </div>
     </div>
+
+    <!-- TOOLS OVERLAY -->
     <div class="overlay" id="overlay-tools">
         <div class="menu-box">
             <div class="grid-3x4">
@@ -83,6 +107,8 @@
             </div>
         </div>
     </div>
+
+    <!-- COLOR OVERLAY -->
     <div class="overlay" id="overlay-color">
         <div class="menu-box" style="align-items: center;">
             <canvas id="brush-preview" width="100" height="100" style="border-radius: 50%; border: 2px solid #fff; margin-bottom: 10px;"></canvas>
@@ -94,6 +120,8 @@
             <input type="range" id="slider-size" min="1" max="100" value="20">
         </div>
     </div>
+
+    <!-- VAULT OVERLAY -->
     <div class="overlay" id="overlay-vault">
         <div class="menu-box">
             <div class="menu-row">
@@ -108,6 +136,8 @@
             </div>
         </div>
     </div>
+
+    <!-- TEXT MENU UI -->
     <div class="overlay" id="ui-text" style="z-index:9999;">
         <div class="menu-box">
             <input type="text" id="text-input" placeholder="Type here...">
@@ -117,7 +147,7 @@
                 <option value="cursive">Cursive / Script</option>
                 <option value="sans-serif">Clean Bold</option>
             </select>
-            <div style="color:#888; font-size:10px;">SIZE / SCALE</div>
+            <div style="color:#888; font-size:10px;">MANUAL SCALE</div>
             <input type="range" id="text-scale-slider" min="0.1" max="5" step="0.01" value="1" oninput="textObj.scale = parseFloat(this.value); drawTextPreview();">
             <div style="color:#888; font-size:10px;">ROTATION</div>
             <input type="range" id="text-rotate" min="0" max="360" value="0" oninput="drawTextPreview()">
@@ -127,11 +157,15 @@
             </div>
         </div>
     </div>
-    <div id="ui-text-confirm" style="display:none; position:fixed; bottom:100px; left:50%; transform:translateX(-50%); z-index:9999; display:flex; gap:10px;">
-        <div class="dock-btn" onclick="textObj.fX *= -1; drawTextPreview();" style="width:60px;">FLIP X</div>
-        <div class="dock-btn" onclick="textObj.fY *= -1; drawTextPreview();" style="width:60px;">FLIP Y</div>
-        <div class="dock-btn" onclick="confirmTextSticker()" style="width:130px; background:#00ffff; color:#000; font-weight:bold;">STAMP</div>
+
+    <!-- TRANSFORM BAR (Shows Flip/Stamp options during placement) -->
+    <div id="ui-transform-bar">
+        <div class="dock-btn" onclick="textObj.fX *= -1; drawTextPreview();" style="flex:0.5;">FLIP X</div>
+        <div class="dock-btn" onclick="textObj.fY *= -1; drawTextPreview();" style="flex:0.5;">FLIP Y</div>
+        <div class="dock-btn" onclick="confirmTextSticker()" style="background:#00ffff; color:#000; font-weight:bold;">STAMP</div>
+        <div class="dock-btn" onclick="cancelTextSticker()" style="background:#333; flex:0.3;">X</div>
     </div>
+
     <input type="file" id="load-file" class="hidden-file" accept="image/*">
     <input type="file" id="import-file" class="hidden-file" accept="image/*">
     <script>
@@ -140,11 +174,16 @@
     const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
     let currentOpenMenu = null;
 
+    // --- OVERLAY & TOOLS LOGIC ---
     function toggleOverlay(id) {
         document.querySelectorAll('.overlay').forEach(el => el.style.display = 'none');
         document.querySelectorAll('.dock-btn').forEach(btn => btn.classList.remove('active-btn'));
         if (id === currentOpenMenu) { currentOpenMenu = null; } 
-        else if (id) { document.getElementById('overlay-' + id).style.display = 'flex'; document.getElementById('btn-' + id).classList.add('active-btn'); currentOpenMenu = id; }
+        else if (id) { 
+            document.getElementById('overlay-' + id).style.display = 'flex'; 
+            if(document.getElementById('btn-' + id)) document.getElementById('btn-' + id).classList.add('active-btn'); 
+            currentOpenMenu = id; 
+        }
         if (app.activeTool && currentOpenMenu !== 'tools') document.getElementById('btn-tools').classList.add('active-btn');
     }
 
@@ -156,6 +195,7 @@
         }
     }
 
+    // --- TRANSFORM & STICKER ENGINE ---
     let textObj = { txt: '', font: '', rot: 0, x: 100, y: 100, scale: 1, img: null, fX: 1, fY: 1 };
 
     function openTextMenu() {
@@ -164,18 +204,26 @@
     }
 
     function startTextSticker() {
-        textObj.txt = document.getElementById('text-input').value; textObj.font = document.getElementById('text-font').value; textObj.rot = parseInt(document.getElementById('text-rotate').value);
+        textObj.txt = document.getElementById('text-input').value; 
+        textObj.font = document.getElementById('text-font').value; 
+        textObj.rot = parseInt(document.getElementById('text-rotate').value);
         if(!textObj.txt) return cancelTextSticker();
-        document.getElementById('ui-text').style.display = 'none'; document.getElementById('ui-text-confirm').style.display = 'flex';
+        document.getElementById('ui-text').style.display = 'none'; 
+        document.getElementById('ui-transform-bar').style.display = 'flex';
         app.activeTool = 'TEXT_PLACE';
         const rect = temp.getBoundingClientRect();
-        textObj.x = (window.innerWidth/2 - rect.left) / app.scale; textObj.y = (window.innerHeight/2 - rect.top) / app.scale; 
+        textObj.x = (window.innerWidth/2 - rect.left) / app.scale; 
+        textObj.y = (window.innerHeight/2 - rect.top) / app.scale; 
         textObj.scale = 1; textObj.img = null; drawTextPreview();
     }
 
     function cancelTextSticker() {
-        document.getElementById('ui-text').style.display = 'none'; document.getElementById('ui-text-confirm').style.display = 'none';
-        app.activeTool = null; tctx.putImageData(window.dragBackup, 0, 0);
+        document.getElementById('ui-text').style.display = 'none'; 
+        document.getElementById('ui-transform-bar').style.display = 'none';
+        app.activeTool = null; 
+        tctx.putImageData(window.dragBackup, 0, 0);
+        // Reset state for next time
+        textObj.img = null; textObj.scale = 1; textObj.rot = 0; textObj.fX = 1; textObj.fY = 1;
     }
 
     function drawTextPreview() {
@@ -195,11 +243,16 @@
     }
 
     function confirmTextSticker() {
-        document.getElementById('ui-text-confirm').style.display = 'none'; pushUndo(); 
-        app.activeTool = null; textObj.img = null; textObj.scale = 1; textObj.fX = 1; textObj.fY = 1; textObj.rot = 0;
+        document.getElementById('ui-transform-bar').style.display = 'none'; 
+        pushUndo(); 
+        app.activeTool = null; 
+        // Reset transforms so next import is clean
+        textObj.img = null; textObj.scale = 1; textObj.rot = 0; textObj.fX = 1; textObj.fY = 1;
+        document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active-btn'));
         toggleOverlay(null);
     }
 
+    // --- GEMINI AI ENGINE ---
     async function triggerAI() {
         let apiKey = localStorage.getItem('gemini_api_key');
         if (!apiKey) { apiKey = prompt("Google Gemini API Key:"); if (apiKey) localStorage.setItem('gemini_api_key', apiKey); else return; }
@@ -221,13 +274,15 @@
         document.getElementById('btn-tools').innerText = 'TOOLS';
     }
 
+    // --- COLOR & FILE CORE ---
     const hueSlider = document.getElementById('slider-hue'), lightSlider = document.getElementById('slider-light'), sizeSlider = document.getElementById('slider-size');
     hueSlider.addEventListener('input', updateColor); lightSlider.addEventListener('input', updateColor); sizeSlider.addEventListener('input', updateColor);
 
     function updateColor() {
         app.penSize = parseInt(sizeSlider.value); app.penColor = `hsl(${hueSlider.value}, 100%, ${lightSlider.value}%)`;
         lightSlider.style.background = `linear-gradient(to right, black, hsl(${hueSlider.value}, 100%, 50%), white)`;
-        document.getElementById('btn-color').style.background = app.penColor; document.getElementById('btn-color').style.color = '#000';
+        document.getElementById('btn-color').style.background = app.penColor; 
+        document.getElementById('btn-color').style.color = (lightSlider.value > 50) ? '#000' : '#fff';
         const pCtx = document.getElementById('brush-preview').getContext('2d');
         pCtx.clearRect(0,0,100,100); pCtx.beginPath(); pCtx.arc(50, 50, app.penSize / 2, 0, Math.PI*2); pCtx.fillStyle = app.penColor; pCtx.fill();
     }
@@ -242,6 +297,7 @@
         }
         return { h: Math.round(h * 360), l: Math.round(l * 100) };
     }
+
     function applyFitMath(imgWidth, imgHeight) {
         main.width = temp.width = imgWidth; main.height = temp.height = imgHeight;
         main.style.width = temp.style.width = imgWidth+'px'; main.style.height = temp.style.height = imgHeight+'px';
@@ -250,28 +306,7 @@
         viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
     }
 
-    function handleImageLoad(e, type) {
-        const file = e.target.files[0]; if(!file) return; const reader = new FileReader();
-        reader.onload = ev => {
-            const img = new Image(); img.onload = () => {
-                if (type === 'load') {
-                    applyFitMath(img.width, img.height);
-                    mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height);
-                    app.undo = []; pushUndo(); toggleOverlay(null);
-                } else if (type === 'import') {
-                    textObj.img = img; textObj.txt = ''; app.activeTool = 'TEXT_PLACE';
-                    window.dragBackup = tctx.getImageData(0,0,temp.width,temp.height);
-                    document.getElementById('ui-text-confirm').style.display = 'flex';
-                    toggleOverlay(null); drawTextPreview();
-                }
-            }; img.src = ev.target.result;
-        }; reader.readAsDataURL(file); e.target.value = '';
-    }
-
-    document.getElementById('load-file').addEventListener('change', e => handleImageLoad(e, 'load'));
-    document.getElementById('import-file').addEventListener('change', e => handleImageLoad(e, 'import'));
-
-    function pushUndo() { if(app.undo.length >= 3) app.undo.shift(); app.undo.push(temp.toDataURL()); }
+    function pushUndo() { if(app.undo.length >= 10) app.undo.shift(); app.undo.push(temp.toDataURL()); }
     function performUndo() { if(app.undo.length <= 1) return; app.undo.pop(); const img = new Image(); img.onload = () => { tctx.clearRect(0,0,temp.width,temp.height); tctx.drawImage(img,0,0); }; img.src = app.undo[app.undo.length-1]; }
 
     function triggerSave() {
@@ -291,158 +326,6 @@
 
     function loadVault(i) {
         if(!app.vaults[i]) return alert("Vault empty!");
-        const img = new Image(); img.onload = () => { applyFitMath(img.width, img.height); mctx.clearRect(0,0,main.width,main.height); mctx.drawImage(img,0,0); tctx.clearRect(0,0,temp.width,temp.height); app.undo = []; pushUndo(); toggleOverlay(null); }; img.src = app.vaults[i];
-    }
-
-    function performReflector() {
-        pushUndo(); const holder = document.createElement('canvas'); holder.width = main.width; holder.height = main.height;
-        const hctx = holder.getContext('2d'); hctx.translate(main.width, 0); hctx.scale(-1, 1);
-        hctx.drawImage(main, 0, 0); hctx.drawImage(temp, 0, 0); mctx.clearRect(0,0,main.width,main.height);
-        tctx.clearRect(0,0,main.width,main.height); mctx.drawImage(holder, 0, 0); toggleOverlay(null);
-    }
-
-    let isDraw = false, isPan = false, dist = 0, px = 0, py = 0, lx = 0, ly = 0;
-    const getC = e => { const rect = temp.getBoundingClientRect(); return { x: (e.clientX - rect.left) / app.scale, y: (e.clientY - rect.top) / app.scale }; };
-
-    function executePicker(c) {
-        const x = Math.floor(c.x), y = Math.floor(c.y);
-        if (x >= 0 && x < main.width && y >= 0 && y < main.height) {
-            let pD = tctx.getImageData(x, y, 1, 1).data; if (pD[3] === 0) pD = mctx.getImageData(x, y, 1, 1).data;
-            if (pD[3] > 0) { 
-                const exactColor = `rgb(${pD[0]}, ${pD[1]}, ${pD[2]})`; const hsl = rgbToHsl(pD[0], pD[1], pD[2]); 
-                document.getElementById('slider-hue').value = hsl.h; document.getElementById('slider-light').value = hsl.l; 
-                app.penColor = exactColor; document.getElementById('btn-color').style.background = exactColor; 
-                const pCtx = document.getElementById('brush-preview').getContext('2d');
-                pCtx.clearRect(0,0,100,100); pCtx.beginPath(); pCtx.arc(50, 50, app.penSize / 2, 0, Math.PI*2); pCtx.fillStyle = exactColor; pCtx.fill();
-            }
-        }
-    }
-
-    function floodFill(startX, startY) {
-        const w = main.width, h = main.height; let x = Math.floor(startX), y = Math.floor(startY);
-        if (x < 0 || x >= w || y < 0 || y >= h) return;
-        const hc = document.createElement('canvas'); hc.width=1; hc.height=1; const hcx = hc.getContext('2d'); hcx.fillStyle = app.penColor; hcx.fillRect(0,0,1,1);
-        const fillCol = new Uint32Array(hcx.getImageData(0,0,1,1).data.buffer)[0];
-        const comp = document.createElement('canvas'); comp.width = w; comp.height = h; const cctx = comp.getContext('2d');
-        cctx.drawImage(main,0,0); cctx.drawImage(temp,0,0);
-        const imgD = cctx.getImageData(0,0,w,h); const data32 = new Uint32Array(imgD.data.buffer);
-        const startCol = data32[y * w + x]; if (startCol === fillCol) return;
-        const stack = [[x, y]];
-        while (stack.length > 0) {
-            let [cx, cy] = stack.pop(); let idx = cy * w + cx;
-            while (cy >= 0 && data32[idx] === startCol) { cy--; idx -= w; }
-            cy++; idx += w; let rL = false, rR = false;
-            while (cy < h && data32[idx] === startCol) {
-                data32[idx] = fillCol;
-                if (cx > 0) { if (data32[idx - 1] === startCol) { if (!rL) { stack.push([cx - 1, cy]); rL = true; } } else if (rL) rL = false; }
-                if (cx < w - 1) { if (data32[idx + 1] === startCol) { if (!rR) { stack.push([cx + 1, cy]); rR = true; } } else if (rR) rR = false; }
-                cy++; idx += w;
-            }
-        }
-        const outImg = tctx.getImageData(0,0,w,h); const out32 = new Uint32Array(outImg.data.buffer);
-        for(let i=0; i<data32.length; i++) { if(data32[i] === fillCol && out32[i] !== fillCol) out32[i] = fillCol; }
-        tctx.putImageData(outImg, 0, 0); pushUndo();
-    }
-
-    viewport.addEventListener('touchstart', e => {
-        if (e.touches.length === 2) {
-            isDraw = false; isPan = true; dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-            px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2; return;
-        }
-        if (e.touches.length === 1) {
-            const t = e.touches[0];
-            if (!app.activeTool) { isDraw = false; isPan = true; lx = t.clientX - app.panX; ly = t.clientY - app.panY; } 
-            else {
-                isPan = false; isDraw = true; const c = getC(t); lx = c.x; ly = c.y;
-                if (app.activeTool === 'PICKER') { executePicker(c); } 
-                else if (app.activeTool === 'FILL') { floodFill(c.x, c.y); isDraw = false; }
-                else if (app.activeTool === 'TEXT_PLACE') { isDraw = true; lx = c.x; ly = c.y; }
-                else if (app.activeTool === 'PASTE' && window.clipboard) { const pC = document.createElement('canvas'); pC.width = window.clipboard.width; pC.height = window.clipboard.height; pC.getContext('2d').putImageData(window.clipboard, 0, 0); tctx.drawImage(pC, c.x, c.y); isDraw = false; pushUndo(); }
-                else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') { window.rX = c.x; window.rY = c.y; }
-                else if (app.activeTool === 'SMOOTH') {
-                    if(!window.smoothBuf) window.smoothBuf = document.createElement('canvas'); 
-                    window.smoothBuf.width = main.width; window.smoothBuf.height = main.height;
-                    const bctx = window.smoothBuf.getContext('2d'); bctx.drawImage(main, 0, 0); bctx.drawImage(temp, 0, 0);
-                }
-            }
-        }
-    }, {passive: false});
-
-    viewport.addEventListener('touchmove', e => {
-        e.preventDefault();
-        if (e.touches.length === 2) {
-            if (app.activeTool === 'TEXT_PLACE') {
-                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-                textObj.scale *= (nd / dist); dist = nd; 
-                document.getElementById('text-scale-slider').value = textObj.scale;
-                drawTextPreview(); return;
-            }
-            if (isPan) {
-                const nd = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-                const ns = Math.min(Math.max(0.2, app.scale * (nd / dist)), 50); 
-                app.panX = px - (px - app.panX) * (ns / app.scale); app.panY = py - (py - app.panY) * (ns / app.scale); 
-                app.scale = ns; dist = nd; px = (e.touches[0].clientX + e.touches[1].clientX) / 2; py = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`;
-            }
-        } else if (e.touches.length === 1) {
-            if (isPan && !app.activeTool) { app.panX = e.touches[0].clientX - lx; app.panY = e.touches[0].clientY - ly; viewport.style.transform = `translate(${app.panX}px, ${app.panY}px) scale(${app.scale})`; } 
-            else if (isDraw && app.activeTool) {
-                const c = getC(e.touches[0]);
-                if (app.activeTool === 'TEXT_PLACE') { textObj.x += (c.x - lx); textObj.y += (c.y - ly); lx = c.x; ly = c.y; drawTextPreview(); }
-                else if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
-                    tctx.clearRect(0,0, temp.width, temp.height); if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
-                    tctx.strokeStyle = '#0ff'; tctx.setLineDash([5,5]); tctx.lineWidth = 2 / app.scale; tctx.strokeRect(window.rX, window.rY, c.x - window.rX, c.y - window.rY); tctx.setLineDash([]);
-                }
-                else if (app.activeTool === 'SMOOTH') {
-                    tctx.save(); tctx.beginPath(); tctx.arc(c.x, c.y, app.penSize/app.scale, 0, Math.PI*2); tctx.clip(); tctx.filter = 'blur(4px)'; tctx.drawImage(window.smoothBuf, 0, 0); tctx.restore();
-                }
-                else if (app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') {
-                    tctx.lineWidth = app.penSize / app.scale; if (app.activeTool === 'ERASER') { tctx.globalCompositeOperation = 'destination-out'; } else { tctx.globalCompositeOperation = 'source-over'; tctx.strokeStyle = app.penColor; }
-                    tctx.beginPath(); tctx.moveTo(lx, ly); tctx.lineTo(c.x, c.y); tctx.stroke(); lx = c.x; ly = c.y;
-                }
-            }
-        }
-    }, {passive: false});
-
-    window.addEventListener('touchend', e => {
-        if (isDraw && app.activeTool) {
-            if (app.activeTool === 'CUT' || app.activeTool === 'COPY') {
-                const c = getC(e.changedTouches[0]); const w = c.x - window.rX, h = c.y - window.rY; tctx.clearRect(0,0, temp.width, temp.height);
-                if (app.undo.length > 0) { const p = new Image(); p.src = app.undo[app.undo.length-1]; tctx.drawImage(p, 0, 0); }
-                if (Math.abs(w) > 5 && Math.abs(h) > 5) {
-                    window.clipboard = mctx.getImageData(window.rX, window.rY, w, h);
-                    if (app.activeTool === 'CUT') { mctx.clearRect(window.rX, window.rY, w, h); pushUndo(); }
-                }
-            } else if (app.activeTool === 'SMOOTH' || app.activeTool === 'PAINTBRUSH' || app.activeTool === 'ERASER') { pushUndo(); }
-        }
-        isDraw = false; isPan = false;
-    });
-
-    function init() {
-        main.width = temp.width = window.innerWidth; main.height = temp.height = window.innerHeight;
-        main.style.width = temp.style.width = window.innerWidth + 'px'; main.style.height = temp.style.height = window.innerHeight + 'px';
-        mctx.lineCap = tctx.lineCap = mctx.lineJoin = tctx.lineJoin = 'round'; updateColor();
-        app.vaults[0] = localStorage.getItem('v0'); app.vaults[1] = localStorage.getItem('v1');
-        if(app.vaults[0]) document.getElementById('vault-img-0').src = app.vaults[0];
-        if(app.vaults[1]) document.getElementById('vault-img-1').src = app.vaults[1];
-        const bg = new Image(); bg.src = 'car.png'; bg.onload = () => { mctx.drawImage(bg, 0, 0); pushUndo(); };
-        pushUndo();
-    }
-    init();
-
-    if ('launchQueue' in window) {
-        window.launchQueue.setConsumer(async (launchParams) => {
-            if (launchParams.files && launchParams.files.length > 0) {
-                const fileHandle = launchParams.files[0]; const file = await fileHandle.getFile();
-                const reader = new FileReader(); reader.onload = ev => {
-                    const img = new Image(); img.onload = () => { applyFitMath(img.width, img.height); mctx.drawImage(img,0,0); pushUndo(); }; img.src = ev.target.result;
-                }; reader.readAsDataURL(file);
-            }
-        });
-    }
-
-    if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('service-worker.js').catch(err => console.log('SW failed', err));
-    }
-</script>
-        </html>
+        const img = new Image(); img.onload = () => { 
+            applyFitMath(img.width, img.height); 
+            mctx.clearRect(
