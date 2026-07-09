@@ -149,7 +149,7 @@
     <input type="file" id="load-file" class="hidden-file" accept="image/*">
     <input type="file" id="import-file" class="hidden-file" accept="image/*">
 
-    <script
+    <script>
         const app = { activeTool: null, penColor: '#00ffff', penSize: 20, scale: 1, panX: 0, panY: 0, undo: [], vaults: [], vaultIdx: 0 };
         const viewport = document.getElementById('viewport'), main = document.getElementById('main-canvas'), temp = document.getElementById('temp-canvas');
         const mctx = main.getContext('2d'), tctx = temp.getContext('2d', { willReadFrequently: true });
