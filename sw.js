@@ -1,7 +1,8 @@
-const CACHE_NAME = 'STUDIO69';
+const CACHE_NAME = 'STUDIO69-V1';
 const ASSETS = [
   './',
   './index.html',
+  './car.png',
   './black.png'
 ];
 
