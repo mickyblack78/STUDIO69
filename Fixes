@@ -1,0 +1,16 @@
+if(app.activeTool !== 'TEXT_PLACE') return;
+    tctx.clearRect(0, 0, temp.width, temp.height); 
+    tctx.save(); 
+    // Calculate the dead-center of your screen on the drawing
+    const cx = (window.innerWidth / 2 - app.panX) / app.scale;
+    const cy = (window.innerHeight / 2 - app.panY) / app.scale;
+    tctx.translate(cx, cy);
+    tctx.rotate(textObj.rot * Math.PI / 180);
+    tctx.scale(textObj.scale * textObj.fX, textObj.scale * textObj.fY);
+    if (textObj.img) {
+        tctx.drawImage(textObj.img, -textObj.img.width/2, -textObj.img.height/2);
+    } else {
+        tctx.font = `${app.penSize * 2 * Math.abs(textObj.scale)}px ${textObj.font}`; 
+        tctx.fillStyle = app.penColor; tctx.textAlign = "center"; tctx.fillText(textObj.txt, 0, 0);
+    }
+    tctx.restore();
